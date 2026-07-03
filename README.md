@@ -3,13 +3,7 @@
 > **基于 ReAct Agent 的移动设备智能自动化平台** — 用自然语言指挥你的手机
 
 <p align="center">
-  <img src="project_pic/index.png" alt="首页" width="49%">
-  <img src="project_pic/dashboard.png" alt="仪表盘" width="49%">
-</p>
-<p align="center">
-  <img src="project_pic/agent.png" alt="AI Agent" width="32%">
-  <img src="project_pic/tasks.png" alt="任务管理" width="32%">
-  <img src="project_pic/wechat.png" alt="微信自动化" width="32%">
+  <img src="project_pic/dashboard.png" alt="仪表盘" width="80%">
 </p>
 
 ***
