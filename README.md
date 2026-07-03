@@ -54,8 +54,10 @@ Mobile Agent 的核心是一个 **ReAct（Reasoning + Acting）循环引擎**：
 ### 任务管理 & 报告
 
 <p align="center">
-  <img src="project_pic/reports.png" alt="报告列表" width="49%">
-  <img src="project_pic/view_report.png" alt="报告详情" width="49%">
+  <img src="project_pic/reports.png" alt="报告列表" width="70%">
+</p>
+<p align="center">
+  <img src="project_pic/view_report.png" alt="报告详情" width="70%">
 </p>
 
 - 任务创建（脚本任务 / 自然语言任务）
@@ -223,7 +225,7 @@ python -m venv venv
 # Windows: venv\Scripts\activate
 # Linux/Mac: source venv/bin/activate
 
-pip install -r requirements.txt
+pip install -r requirements.lock
 ```
 
 ### 启动
