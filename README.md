@@ -2,6 +2,10 @@
 
 > **基于 ReAct Agent 的移动设备智能自动化平台** — 用自然语言指挥你的手机
 
+Mobile Agent 的核心是一个 **ReAct（Reasoning + Acting）循环引擎**：用户输入自然语言指令 → LLM 推理拆解为步骤 → 调用 MCP 设备工具（ADB/HDC/WDA）执行操作 → 观察屏幕结果 → 继续推理直到任务完成。整个过程由三层记忆系统（工作记忆、短期记忆、长期记忆）支撑经验积累，配合反思学习机制持续优化执行质量。
+
+**技术栈**：Python + FastAPI + Jinja2 + SQLite，纯文本 LLM 驱动（支持 OpenAI / Anthropic 协议），无前端框架。
+
 <p align="center">
   <img src="project_pic/dashboard.png" alt="仪表盘" width="80%">
 </p>
