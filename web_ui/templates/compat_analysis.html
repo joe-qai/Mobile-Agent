@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>兼容性分析管理 - Agent Platform</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <script src="/static/js/ui-utils.js"></script>
+    <script src="/static/js/common.js"></script>
+    <style>
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); transition: all 0.3s ease; }
+        .btn-primary:hover { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
+
+        .stat-card { background: white; border-radius: 16px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+        .status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+        .severity-blocker { background: linear-gradient(135deg, #ffe4e6, #fecdd3); color: #e11d48; }
+        .severity-major { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+        .severity-minor { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
+        .severity-suggestion { background: linear-gradient(135deg, #f3f4f6, #e5e7eb); color: #6b7280; }
+        .severity-info { background: linear-gradient(135deg, #f3f4f6, #e5e7eb); color: #6b7280; }
+        .severity-pass { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; }
+        .severity-warning { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+
+        .review-pending { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+        .review-confirmed { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; }
+        .review-rejected { background: linear-gradient(135deg, #ffe4e6, #fecdd3); color: #e11d48; }
+        .review-fixed { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
+        .review-skip { background: linear-gradient(135deg, #f3f4f6, #e5e7eb); color: #6b7280; }
+
+        .table-row-hover:hover { background-color: rgba(59, 130, 246, 0.05); }
+
+        .compat-table {
+            width: 100%;
+            min-width: 1280px;
+            table-layout: auto;
+        }
+
+        .compat-table th,
+        .compat-table td {
+            vertical-align: middle;
+        }
+
+        .compact-col {
+            width: 1%;
+            white-space: nowrap;
+        }
+
+        .summary-col {
+            min-width: 360px;
+            width: 34%;
+        }
+
+        .date-col {
+            min-width: 128px;
+            white-space: nowrap;
+        }
+
+        .device-col {
+            min-width: 128px;
+            white-space: nowrap;
+        }
+
+        .compat-table th:nth-child(1),
+        .compat-table td:nth-child(1),
+        .compat-table th:nth-child(2),
+        .compat-table td:nth-child(2),
+        .compat-table th:nth-child(4),
+        .compat-table td:nth-child(4),
+        .compat-table th:nth-child(6),
+        .compat-table td:nth-child(6),
+        .compat-table th:nth-child(7),
+        .compat-table td:nth-child(7),
+        .compat-table th:nth-child(11),
+        .compat-table td:nth-child(11) {
+            width: 1% !important;
+            white-space: nowrap;
+        }
+
+        .compat-table th:nth-child(3),
+        .compat-table td:nth-child(3) {
+            min-width: 360px !important;
+            width: 34% !important;
+            max-width: none !important;
+        }
+
+        .compat-table th:nth-child(5),
+        .compat-table td:nth-child(5) {
+            min-width: 128px !important;
+            white-space: nowrap;
+        }
+
+        .compat-table th:nth-child(8),
+        .compat-table td:nth-child(8) {
+            min-width: 150px !important;
+            width: auto !important;
+            white-space: normal;
+        }
+
+        .compat-table th:nth-child(9),
+        .compat-table td:nth-child(9),
+        .compat-table th:nth-child(10),
+        .compat-table td:nth-child(10) {
+            min-width: 128px !important;
+            white-space: nowrap;
+        }
+
+        .analysis-summary {
+            display: block;
+            max-width: 50em;
+            line-height: 1.45;
+            overflow: hidden;
+        }
+
+        .summary-line {
+            display: block;
+            max-width: 50em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: clip;
+        }
+
+        .remark-text {
+            display: block;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            line-height: 1.45;
+        }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal-content { background: white; border-radius: 16px; padding: 24px; max-width: 90%; }
+        .modal-review { width: 460px; }
+        .modal-batch-review { width: 420px; }
+        .modal-delete { width: 380px; }
+        .modal-preview { width: auto; max-width: calc(100vw - 64px); }
+        #preview-image { width: auto; height: auto; max-width: calc(100vw - 64px); max-height: calc(100vh - 120px); object-fit: contain; border-radius: 8px; background: #f3f4f6; }
+        #modal-screenshot { width: auto; height: auto; max-width: 100%; max-height: 240px; object-fit: contain; border-radius: 8px; background: #f3f4f6; display: block; cursor: pointer; }
+        #modal-summary { word-break: break-word; overflow-y: auto; max-height: 120px; }
+
+        .screenshot-thumb { width: 80px; height: 80px; object-fit: contain; border-radius: 8px; cursor: pointer; background: #f3f4f6; }
+        .screenshot-placeholder { width: 80px; height: 80px; border-radius: 8px; background: #f3f4f6; display: flex; align-items: center; justify-content: center; }
+
+        .batch-toolbar { background: white; border-radius: 12px; padding: 12px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+        .page-btn { padding: 6px 12px; border-radius: 8px; font-size: 13px; transition: all 0.2s; }
+        .page-btn:hover:not(.disabled) { background-color: rgba(59, 130, 246, 0.1); }
+        .page-btn.disabled { color: #9ca3af; cursor: not-allowed; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50">
+    <div class="flex h-screen">
+        {% include "partials/sidebar.html" %}
+
+        <main id="main-content" class="ml-56 p-5 flex-1 flex flex-col overflow-hidden transition-all duration-300">
+            <div class="flex items-center justify-between mb-4 flex-shrink-0">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">兼容性分析管理</h1>
+                    <p class="text-gray-500 text-sm">集中管理UI兼容性分析结果，支持筛选和审核操作</p>
+                </div>
+            </div>
+
+            <!-- 统计卡片 -->
+            <div class="grid grid-cols-4 gap-4 mb-4 flex-shrink-0">
+                <div class="stat-card flex items-center">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mr-3">
+                        <i class="fa fa-picture-o text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-xs">分析总数</p>
+                        <p id="stat-total" class="text-xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+                <div class="stat-card flex items-center">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center mr-3">
+                        <i class="fa fa-clock-o text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-xs">待审核</p>
+                        <p id="stat-pending" class="text-xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+                <div class="stat-card flex items-center">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mr-3">
+                        <i class="fa fa-check-circle text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-xs">已确认</p>
+                        <p id="stat-confirmed" class="text-xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+                <div class="stat-card flex items-center">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center mr-3">
+                        <i class="fa fa-times-circle text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-xs">已拒绝</p>
+                        <p id="stat-rejected" class="text-xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 筛选区 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4 flex-shrink-0">
+                <div class="flex flex-wrap gap-4 items-center">
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600 font-medium">项目</label>
+                        <select id="filter-project" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">全部项目</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600 font-medium">终端系统</label>
+                        <select id="filter-system" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">全部系统</option>
+                            <option value="Android">Android</option>
+                            <option value="HarmonyOS">HarmonyOS</option>
+                            <option value="iOS">iOS</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600 font-medium">严重程度</label>
+                        <select id="filter-severity" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">全部程度</option>
+                            <option value="blocker">阻塞</option>
+                            <option value="major">严重</option>
+                            <option value="minor">警告</option>
+                            <option value="suggestion">建议</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600 font-medium">审核状态</label>
+                        <select id="filter-status" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">全部状态</option>
+                            <option value="pending">待审核</option>
+                            <option value="confirmed">已确认</option>
+                            <option value="rejected">已拒绝</option>
+                            <option value="skip">已跳过</option>
+                        </select>
+                    </div>
+                    <button onclick="applyFilters()" class="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-blue-700 transition-all text-sm ml-auto">
+                        <i class="fa fa-filter mr-2"></i>筛选
+                    </button>
+                    <button onclick="resetFilters()" class="border border-gray-200 text-gray-600 px-4 py-2 rounded-lg flex items-center hover:bg-gray-50 transition-all text-sm">
+                        <i class="fa fa-refresh mr-2"></i>重置
+                    </button>
+                </div>
+            </div>
+
+            <!-- 批量工具条 -->
+            <div id="batch-toolbar" class="batch-toolbar mb-4 flex-shrink-0 flex items-center gap-4" style="display:none;">
+                <span id="selected-count" class="text-sm text-gray-500">已选择 0 条</span>
+                <button id="batch-review-btn" onclick="openBatchReviewModal()" class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <i class="fa fa-edit mr-1"></i>批量审核
+                </button>
+                <button id="batch-delete-btn" onclick="batchDelete()" class="bg-red-100 text-red-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <i class="fa fa-trash mr-1"></i>批量删除
+                </button>
+            </div>
+
+            <!-- 表格 -->
+            <div class="flex-1 overflow-auto bg-white rounded-xl shadow-sm">
+                <table class="compat-table">
+                    <thead>
+                        <tr class="border-b border-gray-100 bg-gray-50">
+                            <th class="px-4 py-3 text-left w-10"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)" class="rounded border-gray-300"></th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:90px">截图</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="max-width:150px;min-width: 100px;">分析摘要</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:100px">项目</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:120px">厂商/型号</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:80px">程度</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:80px">状态</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="max-width:120px">备注</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:110px">创建时间</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:110px">审核时间</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style="width:70px">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="baseline-table-body">
+                    </tbody>
+                </table>
+
+                <div id="loading-state" class="hidden py-16 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-50 flex items-center justify-center">
+                        <i class="fa fa-spinner fa-spin text-blue-500 text-2xl"></i>
+                    </div>
+                    <p class="text-gray-500">正在加载兼容性分析数据...</p>
+                </div>
+
+                <div id="empty-state" class="hidden py-16 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                        <i class="fa fa-picture-o text-gray-400 text-2xl"></i>
+                    </div>
+                    <p class="text-gray-500">暂无兼容性分析数据</p>
+                </div>
+
+                <div id="error-state" class="hidden py-16 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+                        <i class="fa fa-exclamation-circle text-red-400 text-2xl"></i>
+                    </div>
+                    <p class="text-red-500">加载失败，请稍后重试</p>
+                </div>
+            </div>
+
+            <!-- 分页控件 -->
+            <div id="pagination" class="bg-white rounded-xl shadow-sm p-4 mt-4 flex-shrink-0 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-600">每页条数</span>
+                    <select id="page-size" onchange="changePageSize(this.value)" class="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="prev-page-btn" onclick="prevPage()" class="page-btn disabled">
+                        <i class="fa fa-chevron-left"></i>
+                    </button>
+                    <span id="page-info" class="text-sm text-gray-600">第 1 / 1 页</span>
+                    <button id="next-page-btn" onclick="nextPage()" class="page-btn disabled">
+                        <i class="fa fa-chevron-right"></i>
+                    </button>
+                </div>
+                <span id="total-info" class="text-sm text-gray-500">共 0 条</span>
+            </div>
+        </main>
+    </div>
+
+    <!-- 单条审核弹窗 -->
+    <div id="review-modal" class="modal-overlay" onclick="if(event.target===this)closeReviewModal()">
+        <div class="modal-content modal-review">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">审核兼容性分析</h3>
+                <button onclick="closeReviewModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <div class="mb-4">
+                <img id="modal-screenshot" src="" alt="截图" class="mb-3">
+                <p id="modal-summary" class="text-gray-700"></p>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-600 mb-2">审核结果</label>
+                <div class="flex gap-3">
+                    <button onclick="submitReview('confirmed')" class="flex-1 bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 transition-all text-sm font-medium">
+                        <i class="fa fa-check-circle mr-2"></i>确认通过
+                    </button>
+                    <button onclick="submitReview('rejected')" class="flex-1 bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 transition-all text-sm font-medium">
+                        <i class="fa fa-times-circle mr-2"></i>拒绝
+                    </button>
+                    <button onclick="submitReview('fixed')" class="flex-1 bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition-all text-sm font-medium">
+                        <i class="fa fa-wrench mr-2"></i>已修复
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-600 mb-2">备注（可选）</label>
+                <textarea id="review-remark" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3"></textarea>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="closeReviewModal()" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all text-sm mr-2">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量审核弹窗 -->
+    <div id="batch-review-modal" class="modal-overlay" onclick="if(event.target===this)closeBatchReviewModal()">
+        <div class="modal-content modal-batch-review">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">批量审核</h3>
+                <button onclick="closeBatchReviewModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <p id="batch-review-count" class="text-sm text-gray-600 mb-4">选中 0 条记录</p>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-600 mb-2">审核结果</label>
+                <div class="flex gap-3">
+                    <button onclick="submitBatchReview('confirmed')" class="flex-1 bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 transition-all text-sm font-medium">
+                        <i class="fa fa-check-circle mr-2"></i>确认通过
+                    </button>
+                    <button onclick="submitBatchReview('rejected')" class="flex-1 bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 transition-all text-sm font-medium">
+                        <i class="fa fa-times-circle mr-2"></i>拒绝
+                    </button>
+                    <button onclick="submitBatchReview('fixed')" class="flex-1 bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition-all text-sm font-medium">
+                        <i class="fa fa-wrench mr-2"></i>已修复
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-600 mb-2">备注（可选）</label>
+                <textarea id="batch-review-remark" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3"></textarea>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="closeBatchReviewModal()" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all text-sm mr-2">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div id="delete-modal" class="modal-overlay" onclick="if(event.target===this)closeDeleteModal()">
+        <div class="modal-content modal-delete">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">确认删除</h3>
+                <button onclick="closeDeleteModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <p class="text-gray-600 mb-6">确定要删除这条兼容性分析记录吗？此操作不可恢复。</p>
+
+            <div class="flex justify-end">
+                <button onclick="closeDeleteModal()" class="text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all text-sm mr-2">取消</button>
+                <button onclick="confirmDelete()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all text-sm">确认删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 截图预览弹窗 -->
+    <div id="preview-modal" class="modal-overlay" onclick="if(event.target===this)closePreviewModal()">
+        <div class="modal-content modal-preview">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">截图预览</h3>
+                <button onclick="closePreviewModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times text-lg"></i>
+                </button>
+            </div>
+            <img id="preview-image" src="" alt="截图预览">
+        </div>
+    </div>
+
+    <script>
+        let currentReviewId = null;
+        let currentDeleteId = null;
+        let currentFilters = {};
+        let pagination = { page: 1, size: 10, total: 0, total_pages: 1 };
+        let selectedIds = new Set();
+        let currentPageBaselines = [];
+
+        const severityDisplayMap = {
+            'blocker': '阻塞',
+            'major': '严重',
+            'minor': '警告',
+            'suggestion': '建议',
+            'critical': '阻塞',
+            'info': '建议',
+            'pass': '通过',
+            'warning': '警告'
+        };
+
+        const severityClassMap = {
+            'blocker': 'severity-blocker',
+            'major': 'severity-major',
+            'minor': 'severity-minor',
+            'suggestion': 'severity-suggestion',
+            'critical': 'severity-blocker',
+            'info': 'severity-suggestion',
+            'pass': 'severity-pass',
+            'warning': 'severity-warning'
+        };
+
+        const reviewStatusTextMap = {
+            'pending': '待审核',
+            'confirmed': '已确认',
+            'rejected': '已拒绝',
+            'fixed': '已修复',
+            'skip': '已跳过'
+        };
+
+        async function fetchProjects() {
+            setBaselineLoading(true);
+            try {
+                const response = await fetch('/api/projects?page=1&size=100');
+                const data = await response.json();
+                const select = document.getElementById('filter-project');
+                const projects = data.projects || data.items || [];
+                projects.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.id;
+                    option.textContent = p.name;
+                    select.appendChild(option);
+                });
+            } catch (e) {
+                console.warn('项目列表加载失败，保留"全部项目"选项');
+            }
+        }
+
+        function setBaselineLoading(isLoading) {
+            const loadingState = document.getElementById('loading-state');
+            const errorState = document.getElementById('error-state');
+            const emptyState = document.getElementById('empty-state');
+            const tbody = document.getElementById('baseline-table-body');
+
+            if (!loadingState) return;
+            loadingState.classList.toggle('hidden', !isLoading);
+            if (isLoading) {
+                if (tbody) tbody.innerHTML = '';
+                errorState?.classList.add('hidden');
+                emptyState?.classList.add('hidden');
+            }
+        }
+
+        async function loadBaselines() {
+            const errorState = document.getElementById('error-state');
+            const emptyState = document.getElementById('empty-state');
+
+            let url = '/api/compat/baselines?page=' + pagination.page + '&size=' + pagination.size;
+            Object.entries(currentFilters).forEach(([key, value]) => {
+                if (value) {
+                    url += '&' + key + '=' + encodeURIComponent(value);
+                }
+            });
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('请求失败');
+                const data = await response.json();
+
+                pagination.total = data.total || 0;
+                pagination.total_pages = data.total_pages || 1;
+                pagination.page = data.page || 1;
+                pagination.size = data.size || 10;
+
+                currentPageBaselines = data.items || data.baselines || [];
+                setBaselineLoading(false);
+                renderTable(currentPageBaselines);
+                updateStats(data);
+                updatePagination();
+                clearSelection();
+            } catch (e) {
+                setBaselineLoading(false);
+                errorState.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+                console.error('加载 baseline 失败:', e);
+            }
+        }
+
+        function updateStats(data) {
+            document.getElementById('stat-total').textContent = data.total || 0;
+            const counts = data.review_status_counts || {};
+            document.getElementById('stat-pending').textContent = counts.pending || 0;
+            document.getElementById('stat-confirmed').textContent = counts.confirmed || 0;
+            document.getElementById('stat-rejected').textContent = counts.rejected || 0;
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, c => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[c]));
+        }
+
+        function formatSummaryText(text) {
+            const chars = Array.from(text || '-');
+            const isTruncated = chars.length > 100;
+            const displayChars = chars.slice(0, isTruncated ? 97 : 100);
+            const lines = [];
+
+            for (let i = 0; i < displayChars.length && lines.length < 2; i += 50) {
+                lines.push(escapeHtml(displayChars.slice(i, i + 50).join('')));
+            }
+
+            if (isTruncated) {
+                lines[1] = `${lines[1] || ''}...`;
+            }
+
+            return lines.map(line => `<span class="summary-line">${line}</span>`).join('');
+        }
+
+        function getBaselineScreenshotSrc(baseline) {
+            if (!baseline) return '';
+            const imageData = baseline.preview_screenshot_base64
+                || baseline.annotated_screenshot_base64
+                || baseline.screenshot_base64;
+            return imageData ? 'data:image/png;base64,' + imageData : '';
+        }
+
+        function renderTable(baselines) {
+            const tbody = document.getElementById('baseline-table-body');
+            const emptyState = document.getElementById('empty-state');
+            const errorState = document.getElementById('error-state');
+
+            tbody.innerHTML = '';
+            errorState.classList.add('hidden');
+
+            if (!baselines || baselines.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            baselines.forEach(b => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-50 table-row-hover transition-colors';
+
+                const screenshotSrc = getBaselineScreenshotSrc(b);
+                const severityClass = severityClassMap[b.severity] || 'severity-suggestion';
+                const reviewStatus = ['pending', 'confirmed', 'rejected', 'fixed', 'skip'].includes(b.review_status)
+                    ? b.review_status
+                    : 'pending';
+                const reviewClass = 'review-' + reviewStatus;
+
+                const summaryText = b.analysis_summary || '-';
+                const summaryDisplay = formatSummaryText(summaryText);
+                const deviceBrandModel = b.device_brand_model || b.device_model || '-';
+
+                const remarkText = b.remark || '-';
+                const remarkDisplay = escapeHtml(remarkText);
+
+                const safeSummary = escapeHtml(summaryText);
+                const safeStepName = escapeHtml(b.step_name || '');
+                const safeProjectName = escapeHtml(b.project_name || '-');
+                const safeDeviceBrandModel = escapeHtml(deviceBrandModel);
+                const safeSeverityText = escapeHtml(severityDisplayMap[b.severity] || b.severity || '未知');
+                const safeRemark = escapeHtml(remarkText);
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3">
+                        <input type="checkbox" class="baseline-checkbox rounded border-gray-300" value="${b.id}" onchange="updateSelection()">
+                    </td>
+                    <td class="px-4 py-3">
+                        ${screenshotSrc
+                            ? '<img src="' + screenshotSrc + '" class="screenshot-thumb" onclick="openPreviewModal(\'' + screenshotSrc + '\')">'
+                            : '<div class="screenshot-placeholder"><i class="fa fa-picture-o text-gray-400"></i></div>'
+                        }
+                    </td>
+                    <td class="px-4 py-3 max-w-xs" title="${safeSummary}">
+                        <p class="text-sm text-gray-800 analysis-summary">${summaryDisplay}</p>
+                        <p class="text-xs text-gray-400 mt-1">${safeStepName}</p>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-sm text-gray-700">${safeProjectName}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-sm text-gray-700">${safeDeviceBrandModel}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="status-badge ${severityClass}">${safeSeverityText}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="status-badge ${reviewClass}">${reviewStatusTextMap[b.review_status] || '未知'}</span>
+                    </td>
+                    <td class="px-4 py-3" title="${safeRemark}">
+                        <span class="text-sm text-gray-600 remark-text">${remarkDisplay}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-xs text-gray-500">${formatDate(b.created_at)}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-xs text-gray-500">${b.reviewed_at ? formatDate(b.reviewed_at) : '-'}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex gap-2">
+                            <button onclick="openReviewModal(${b.id})" class="text-blue-600 hover:text-blue-800 text-sm" title="审核">
+                                <i class="fa fa-edit"></i>
+                            </button>
+                            <button onclick="openDeleteModal(${b.id})" class="text-red-600 hover:text-red-800 text-sm" title="删除">
+                                <i class="fa fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            try {
+                const d = new Date(dateStr);
+                return d.getFullYear() + '-' +
+                    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(d.getDate()).padStart(2, '0') + ' ' +
+                    String(d.getHours()).padStart(2, '0') + ':' +
+                    String(d.getMinutes()).padStart(2, '0');
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        function applyFilters() {
+            currentFilters = {
+                project_id: document.getElementById('filter-project').value,
+                system_os: document.getElementById('filter-system').value,
+                severity: document.getElementById('filter-severity').value,
+                review_status: document.getElementById('filter-status').value
+            };
+            pagination.page = 1;
+            loadBaselines();
+        }
+
+        function resetFilters() {
+            document.getElementById('filter-project').value = '';
+            document.getElementById('filter-system').value = '';
+            document.getElementById('filter-severity').value = '';
+            document.getElementById('filter-status').value = '';
+            currentFilters = {};
+            pagination.page = 1;
+            loadBaselines();
+        }
+
+        // 分页
+        function updatePagination() {
+            document.getElementById('page-info').textContent = '第 ' + pagination.page + ' / ' + pagination.total_pages + ' 页';
+            document.getElementById('total-info').textContent = '共 ' + pagination.total + ' 条';
+            document.getElementById('page-size').value = pagination.size;
+
+            const prevBtn = document.getElementById('prev-page-btn');
+            const nextBtn = document.getElementById('next-page-btn');
+            prevBtn.classList.toggle('disabled', pagination.page <= 1);
+            nextBtn.classList.toggle('disabled', pagination.page >= pagination.total_pages);
+        }
+
+        function prevPage() {
+            if (pagination.page > 1) {
+                pagination.page--;
+                loadBaselines();
+            }
+        }
+
+        function nextPage() {
+            if (pagination.page < pagination.total_pages) {
+                pagination.page++;
+                loadBaselines();
+            }
+        }
+
+        function changePageSize(size) {
+            pagination.size = parseInt(size);
+            pagination.page = 1;
+            loadBaselines();
+        }
+
+        // 选择
+        function clearSelection() {
+            selectedIds.clear();
+            document.getElementById('select-all').checked = false;
+            updateBatchButtons();
+        }
+
+        function updateSelection() {
+            const checkboxes = document.querySelectorAll('.baseline-checkbox');
+            selectedIds.clear();
+            checkboxes.forEach(cb => {
+                if (cb.checked) selectedIds.add(parseInt(cb.value));
+            });
+            document.getElementById('select-all').checked = checkboxes.length > 0 && checkboxes.length === selectedIds.size;
+            updateBatchButtons();
+        }
+
+        function toggleSelectAll(checked) {
+            const checkboxes = document.querySelectorAll('.baseline-checkbox');
+            selectedIds.clear();
+            checkboxes.forEach(cb => {
+                cb.checked = checked;
+                if (checked) selectedIds.add(parseInt(cb.value));
+            });
+            updateBatchButtons();
+        }
+
+        function updateBatchButtons() {
+            const count = selectedIds.size;
+            document.getElementById('selected-count').textContent = '已选择 ' + count + ' 条';
+            document.getElementById('batch-review-btn').disabled = count === 0;
+            document.getElementById('batch-delete-btn').disabled = count === 0;
+            document.getElementById('batch-toolbar').style.display = count > 0 ? 'flex' : 'none';
+        }
+
+        // 单条审核
+        async function openReviewModal(id) {
+            currentReviewId = id;
+            const baseline = currentPageBaselines.find(b => b.id === id);
+            if (baseline) {
+                const src = getBaselineScreenshotSrc(baseline);
+                const img = document.getElementById('modal-screenshot');
+                img.src = src;
+                img.style.display = src ? 'block' : 'none';
+                img.onclick = src ? () => openPreviewModal(src) : null;
+                document.getElementById('modal-summary').textContent = baseline.analysis_summary || '无分析摘要';
+                document.getElementById('review-remark').value = baseline.remark || '';
+                document.getElementById('review-modal').classList.add('show');
+            }
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').classList.remove('show');
+            currentReviewId = null;
+        }
+
+        async function submitReview(status) {
+            if (!currentReviewId) return;
+            const remark = document.getElementById('review-remark').value;
+            try {
+                const response = await fetch('/api/compat/baselines/' + currentReviewId + '/review', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status, remark, reviewed_by: 'admin' })
+                });
+                if (response.ok) {
+                    UIUtils.success('审核成功', '审核状态已更新');
+                    closeReviewModal();
+                    loadBaselines();
+                } else {
+                    UIUtils.error('审核失败', '请稍后重试');
+                }
+            } catch (e) {
+                UIUtils.error('审核失败', '网络错误');
+            }
+        }
+
+        // 批量审核
+        function openBatchReviewModal() {
+            if (selectedIds.size === 0) return;
+            document.getElementById('batch-review-count').textContent = '选中 ' + selectedIds.size + ' 条记录';
+            document.getElementById('batch-review-remark').value = '';
+            document.getElementById('batch-review-modal').classList.add('show');
+        }
+
+        function closeBatchReviewModal() {
+            document.getElementById('batch-review-modal').classList.remove('show');
+        }
+
+        async function submitBatchReview(status) {
+            if (selectedIds.size === 0) return;
+            const remark = document.getElementById('batch-review-remark').value;
+            try {
+                const response = await fetch('/api/compat/baselines/batch-review', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: Array.from(selectedIds), status, remark, reviewed_by: 'admin' })
+                });
+                const result = await response.json();
+                if (result.errors && result.errors.length > 0) {
+                    UIUtils.warning('部分失败', '成功 ' + result.reviewed + ' 条，失败 ' + result.errors.length + ' 条');
+                } else {
+                    UIUtils.success('批量审核成功', '成功审核 ' + result.reviewed + ' 条');
+                }
+                closeBatchReviewModal();
+                loadBaselines();
+            } catch (e) {
+                UIUtils.error('批量审核失败', '网络错误');
+            }
+        }
+
+        // 删除
+        function openDeleteModal(id) {
+            currentDeleteId = id;
+            document.getElementById('delete-modal').classList.add('show');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('delete-modal').classList.remove('show');
+            currentDeleteId = null;
+        }
+
+        async function confirmDelete() {
+            if (!currentDeleteId) return;
+            try {
+                const response = await fetch('/api/compat/baselines/' + currentDeleteId, { method: 'DELETE' });
+                if (response.ok) {
+                    UIUtils.success('删除成功', '记录已删除');
+                    closeDeleteModal();
+                    loadBaselines();
+                } else {
+                    UIUtils.error('删除失败', '请稍后重试');
+                }
+            } catch (e) {
+                UIUtils.error('删除失败', '网络错误');
+            }
+        }
+
+        // 批量删除
+        function batchDelete() {
+            if (selectedIds.size === 0) return;
+            UIUtils.confirm({
+                title: '确认批量删除',
+                message: '确定要删除选中的 ' + selectedIds.size + ' 条记录吗？此操作不可恢复。',
+                type: 'danger',
+                okText: '删除',
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch('/api/compat/baselines/batch-delete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids: Array.from(selectedIds) })
+                        });
+                        const result = await response.json();
+                        if (result.errors && result.errors.length > 0) {
+                            UIUtils.warning('部分失败', '成功删除 ' + result.deleted + ' 条，失败 ' + result.errors.length + ' 条');
+                        } else {
+                            UIUtils.success('批量删除成功', '成功删除 ' + result.deleted + ' 条');
+                        }
+                        loadBaselines();
+                    } catch (e) {
+                        UIUtils.error('批量删除失败', '网络错误');
+                    }
+                }
+            });
+        }
+
+        // 截图预览（当前窗口模态框，不再 window.open）
+        function openPreviewModal(src) {
+            document.getElementById('preview-image').src = src;
+            document.getElementById('preview-modal').classList.add('show');
+        }
+
+        function closePreviewModal() {
+            document.getElementById('preview-modal').classList.remove('show');
+        }
+
+        // 初始化：只加载 baseline，不加载 scripts
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchProjects();
+            await loadBaselines();
+        });
+    </script>
+</body>
+</html>

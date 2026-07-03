@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>__REPORT_TITLE__</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #eef2ff;
+            --success: #10b981;
+            --success-light: #d1fae5;
+            --danger: #e11d48;
+            --danger-light: #ffe4e6;
+            --warning: #f59e0b;
+            --warning-light: #fef3c7;
+            --info: #3b82f6;
+            --info-light: #dbeafe;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .report-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .report-header {
+            background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+            border-radius: 20px;
+            padding: 32px;
+            color: white;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 40px rgba(79, 70, 229, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .report-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 300px;
+            height: 300px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .report-header::after {
+            content: '';
+            position: absolute;
+            bottom: -30%;
+            left: -10%;
+            width: 200px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .report-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 8px;
+            line-height: 1.3;
+        }
+
+        .report-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin: 0;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 24px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            opacity: 0.95;
+        }
+
+        .meta-item i {
+            width: 16px;
+            text-align: center;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 16px;
+        }
+
+        .status-success {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .status-danger {
+            background: rgba(225, 29, 72, 0.2);
+            color: #e11d48;
+        }
+
+        .status-warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            min-width: 0;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .stat-icon.total {
+            background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+            color: var(--primary);
+        }
+
+        .stat-icon.pass {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            color: var(--success);
+        }
+
+        .stat-icon.fail {
+            background: linear-gradient(135deg, #ffe4e6, #fecdd3);
+            color: var(--danger);
+        }
+
+        .stat-icon.warning {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            color: var(--warning);
+        }
+
+        .stat-icon.major {
+            background: linear-gradient(135deg, #ffedd5, #fed7aa);
+            color: #ea580c;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .stat-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+
+        .stat-value.result-success {
+            color: var(--success);
+        }
+
+        .stat-value.result-fail {
+            color: var(--danger);
+        }
+
+        .pass-rate-section {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            margin-bottom: 24px;
+        }
+
+        .pass-rate-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .pass-rate-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+
+        .pass-rate-value {
+            font-size: 36px;
+            font-weight: 800;
+        }
+
+        .pass-rate-value.success {
+            color: var(--success);
+        }
+
+        .pass-rate-value.warning {
+            color: var(--warning);
+        }
+
+        .pass-rate-value.danger {
+            color: var(--danger);
+        }
+
+        .progress-bar {
+            height: 12px;
+            background: var(--gray-100);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.8s ease;
+            position: relative;
+        }
+
+        .progress-fill.success {
+            background: linear-gradient(90deg, #10b981, #34d399);
+        }
+
+        .progress-fill.warning {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+        }
+
+        .progress-fill.danger {
+            background: linear-gradient(90deg, #e11d48, #fb7185);
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .steps-section {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+
+        .steps-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .steps-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .steps-count {
+            font-size: 13px;
+            color: var(--gray-500);
+            background: var(--gray-100);
+            padding: 4px 12px;
+            border-radius: 12px;
+        }
+
+        .step-card {
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid;
+            background: white;
+            border: 1px solid var(--gray-100);
+            border-left-width: 4px;
+            transition: all 0.2s;
+        }
+
+        .step-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .step-card.success {
+            border-left-color: var(--success);
+        }
+
+        .step-card.danger {
+            border-left-color: var(--danger);
+        }
+
+        .step-card.warning {
+            border-left-color: var(--warning);
+        }
+
+        .step-card.muted {
+            border-left-color: var(--gray-400);
+        }
+
+        .step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .step-info {
+            flex: 1;
+        }
+
+        .step-index {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            background: rgba(0,0,0,0.08);
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            margin-right: 12px;
+        }
+
+        .step-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--gray-800);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .baseline-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 9px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .2px;
+            line-height: 1.2;
+        }
+
+        .baseline-badge-new {
+            background: #ff6b6b;
+            color: white;
+            box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
+        }
+
+        .baseline-badge-reused {
+            background: var(--info-light);
+            color: #0369a1;
+        }
+
+        .baseline-actions {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: flex-end;
+            margin-left: auto;
+            margin-right: 10px;
+        }
+
+        .baseline-actions button {
+            border: 1px solid var(--gray-200);
+            background: white;
+            color: var(--gray-700);
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .baseline-actions button:hover {
+            background: var(--gray-50);
+        }
+
+        .baseline-actions .confirm {
+            border-color: #fecaca;
+            color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .baseline-actions .reject {
+            border-color: var(--gray-300);
+            color: var(--gray-600);
+        }
+
+        .baseline-actions .skip {
+            border-color: #bfdbfe;
+            color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .baseline-actions .delete {
+            border-color: #fed7aa;
+            color: #ea580c;
+            background: #fff7ed;
+        }
+
+        .step-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .step-status.success {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+
+        .step-status.danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+        }
+
+        .step-status.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+
+        .step-details {
+            margin-left: 38px;
+            font-size: 13px;
+            color: var(--gray-600);
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .step-details .detail-label {
+            color: var(--gray-500);
+            font-weight: 500;
+        }
+
+        .vlm-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+
+        .vlm-tag.pass {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+
+        .vlm-tag.fail {
+            background: rgba(225, 29, 72, 0.15);
+            color: var(--danger);
+        }
+
+        .vlm-tag.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+
+        .vlm-tag.unknown {
+            background: rgba(107, 114, 128, 0.15);
+            color: var(--gray-500);
+        }
+
+        .confidence-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .confidence-tag.high {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+
+        .confidence-tag.medium {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+
+        .confidence-tag.low {
+            background: rgba(225, 29, 72, 0.15);
+            color: var(--danger);
+        }
+
+        .confidence-tag.zero {
+            background: rgba(107, 114, 128, 0.15);
+            color: var(--gray-500);
+        }
+
+        .screenshot-container {
+            margin-top: 12px;
+            margin-left: 38px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--gray-200);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .screenshot-container:hover {
+            border-color: var(--gray-300);
+        }
+
+        .screenshot-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: var(--gray-50);
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
+        .screenshot-header i {
+            font-size: 14px;
+            transition: transform 0.2s;
+        }
+
+        .screenshot-img {
+            width: 100%;
+            max-height: 0;
+            object-fit: contain;
+            transition: max-height 0.3s ease;
+        }
+
+        .screenshot-img[loading="lazy"] {
+            /* Lazy loading for deferred screenshot rendering */
+        }
+
+        .screenshot-img.expanded {
+            max-height: 400px;
+        }
+
+        .report-footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--gray-400);
+            font-size: 12px;
+        }
+
+        .report-summary {
+            background: var(--gray-50);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: var(--gray-700);
+            border-left: 4px solid var(--primary);
+        }
+
+        @media (max-width: 768px) {
+            .report-header {
+                padding: 20px;
+            }
+
+            .header-meta {
+                gap: 12px;
+            }
+
+            .pass-rate-value {
+                font-size: 24px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .report-title {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-shell report-container">
+        <div class="report-header">
+            <div class="header-content">
+                <div class="report-title">__REPORT_NAME__</div>
+                <div class="report-subtitle">__REPORT_REMARK__</div>
+                
+                <div class="header-meta">
+                    <div class="meta-item">
+                        <i class="fa fa-tasks"></i>
+                        <span>__TEST_TYPE__</span>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fa fa-clock-o"></i>
+                        <span>__CREATED_AT__</span>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fa fa-clock-o"></i>
+                        <span>__GENERATED_AT__</span>
+                    </div>
+                </div>
+
+                <div class="status-badge __REPORT_STATUS_CLASS__">
+                    <i class="fa fa-check-circle"></i>
+                    <span>__REPORT_STATUS_LABEL__</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="report-summary">
+            <i class="fa fa-info-circle" style="margin-right: 8px; color: var(--primary);"></i>
+            __REPORT_SUMMARY__
+        </div>
+
+        <div class="stats-grid">
+            __SUMMARY_CARDS__
+        </div>
+
+        <div class="steps-section">
+            <div class="steps-header">
+                <div class="steps-title">
+                    <i class="fa fa-check-square-o"></i>
+                    <span>__STEPS_TITLE__</span>
+                </div>
+                <div class="steps-count">__STEPS_COUNT_LABEL__</div>
+            </div>
+            <div class="steps-list">
+                __STEPS_HTML__
+            </div>
+        </div>
+
+        <div class="report-footer">
+            <i class="fa fa-robot" style="margin-right: 6px;"></i>
+            Agent Platform · 生成时间：__GENERATED_AT__
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.screenshot-container').forEach(function(container) {
+                container.addEventListener('click', function() {
+                    var img = this.querySelector('.screenshot-img');
+                    var icon = this.querySelector('.screenshot-header i');
+                    img.classList.toggle('expanded');
+                    if (icon) {
+                        icon.style.transform = img.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0deg)';
+                    }
+                });
+            });
+        });
+
+    </script>
+</body>
+</html>

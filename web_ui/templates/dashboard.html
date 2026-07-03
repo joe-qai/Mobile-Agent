@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪表盘 - Agent Platform</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <script src="/static/js/ui-utils.js"></script>
+    <script src="/static/js/common.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <style>
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        .stat-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%);
+            backdrop-filter: blur(10px);
+        }
+
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .status-running { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: white; }
+        .status-finished { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+        .status-failed { background: linear-gradient(135deg, #e11d48, #be123c); color: white; }
+        .status-pending { background: linear-gradient(135deg, #6b7280, #4b5563); color: white; }
+        .status-cancelled { background: linear-gradient(135deg, #a855f7, #7c3aed); color: white; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50">
+    <div class="flex h-screen">
+        <!-- 侧边栏 -->
+        {% include "partials/sidebar.html" %}
+
+        <!-- 主内容区 - 一屏自适应 -->
+        <main id="main-content" class="ml-56 p-4 flex-1 overflow-y-auto transition-all duration-300">
+            <!-- 标题区 -->
+            <div class="mb-3 flex-shrink-0 flex items-center justify-between">
+                <div>
+                    <h1 class="text-lg font-bold text-gray-800">仪表盘</h1>
+                    <p class="text-gray-500 text-xs">实时监控项目、脚本、任务和设备状态</p>
+                </div>
+                <button onclick="refreshAll()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors">
+                    <i class="fa fa-refresh"></i> 刷新
+                </button>
+            </div>
+
+            <!-- 内容区域 -->
+            <div class="flex flex-col space-y-3">
+                <!-- 统计卡片 - 紧凑设计 -->
+                <div class="grid grid-cols-4 gap-3 flex-shrink-0">
+                    <div class="stat-card rounded-lg p-3 shadow border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-xs mb-0.5">项目总数</p>
+                                <p id="stat-projects" class="text-xl font-bold text-gray-800">0</p>
+                            </div>
+                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow">
+                                <i class="fa fa-folder-open text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card rounded-lg p-3 shadow border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-xs mb-0.5">脚本总数</p>
+                                <p id="stat-scripts" class="text-xl font-bold text-gray-800">0</p>
+                            </div>
+                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow">
+                                <i class="fa fa-file-code-o text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card rounded-lg p-3 shadow border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-xs mb-0.5">任务总数</p>
+                                <p id="stat-tasks" class="text-xl font-bold text-gray-800">0</p>
+                            </div>
+                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow">
+                                <i class="fa fa-tasks text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card rounded-lg p-3 shadow border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-xs mb-0.5">在线设备</p>
+                                <p id="stat-devices" class="text-xl font-bold text-gray-800">0</p>
+                            </div>
+                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow">
+                                <i class="fa fa-mobile text-white text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 任务进度条 -->
+                <div id="progress-section" class="hidden">
+                    <div class="bg-white rounded-lg shadow border border-gray-100 p-3">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <h2 class="text-sm font-semibold text-gray-800">任务执行进度</h2>
+                            <span id="progress-text" class="text-xs text-gray-500">0/0</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                            <div id="progress-bar" class="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500" style="width: 0%;"></div>
+                        </div>
+                        <p id="progress-percent" class="text-xs text-gray-500 mt-1 text-right">0%</p>
+                    </div>
+                </div>
+
+                <!-- 趋势图表区域 -->
+                <div class="flex-shrink-0">
+                    <div class="flex items-center gap-2 mb-2">
+                        <h2 class="text-sm font-semibold text-gray-800">趋势图表</h2>
+                        <div class="flex items-center gap-1 ml-auto">
+                            <button onclick="loadTrends(7)" class="trend-range-btn px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white" data-days="7">7天</button>
+                            <button onclick="loadTrends(14)" class="trend-range-btn px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-blue-100" data-days="14">14天</button>
+                            <button onclick="loadTrends(30)" class="trend-range-btn px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-blue-100" data-days="30">30天</button>
+                            <button onclick="loadTrends(90)" class="trend-range-btn px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-blue-100" data-days="90">90天</button>
+                            <span class="text-gray-300 mx-1">|</span>
+                            <input type="date" id="trend-start" class="px-2 py-1 border border-gray-200 rounded text-xs" onchange="loadTrendsByRange()">
+                            <input type="date" id="trend-end" class="px-2 py-1 border border-gray-200 rounded text-xs" onchange="loadTrendsByRange()">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-white rounded-lg shadow border border-gray-100 p-2.5">
+                            <h3 class="text-xs font-semibold text-gray-700 mb-1.5">成功率趋势</h3>
+                            <div style="height: 200px;"><canvas id="chart-success-rate"></canvas></div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow border border-gray-100 p-2.5">
+                            <h3 class="text-xs font-semibold text-gray-700 mb-1.5">执行时长分布</h3>
+                            <div style="height: 200px;"><canvas id="chart-execution-duration"></canvas></div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow border border-gray-100 p-2.5">
+                            <h3 class="text-xs font-semibold text-gray-700 mb-1.5">设备活跃度</h3>
+                            <div style="height: 200px;"><canvas id="chart-device-activity"></canvas></div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow border border-gray-100 p-2.5">
+                            <h3 class="text-xs font-semibold text-gray-700 mb-1.5">项目执行热力</h3>
+                            <div style="height: 200px;"><canvas id="chart-project-heat"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 最近任务和设备状态并排 -->
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- 最近任务列表 -->
+                    <div class="bg-white rounded-lg shadow border border-gray-100 p-3 flex flex-col min-h-0">
+                        <div class="flex items-center justify-between mb-2 flex-shrink-0">
+                            <div>
+                                <h2 class="text-sm font-semibold text-gray-800">最近任务</h2>
+                                <p class="text-gray-400 text-xs">最近执行的任务记录</p>
+                            </div>
+                            <a href="/tasks" class="text-blue-600 hover:text-blue-700 text-xs font-medium flex items-center">
+                                <span>查看全部</span>
+                                <i class="fa fa-arrow-right ml-1"></i>
+                            </a>
+                        </div>
+                        <div class="overflow-y-auto flex-1 min-h-0" style="max-height: calc(100vh - 340px);">
+                            <table class="w-full">
+                                <thead class="sticky top-0 bg-white">
+                                    <tr class="border-b border-gray-100">
+                                        <th class="text-left py-1.5 px-2 text-xs font-semibold text-gray-400">任务</th>
+                                        <th class="text-left py-1.5 px-2 text-xs font-semibold text-gray-400">状态</th>
+                                        <th class="text-left py-1.5 px-2 text-xs font-semibold text-gray-400">时间</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-tasks">
+                                    <tr>
+                                        <td colspan="3" class="text-center py-4 text-gray-400 text-xs">
+                                            <i class="fa fa-spinner fa-spin text-lg mb-1 block"></i>
+                                            加载中...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 设备状态 -->
+                    <div class="bg-white rounded-lg shadow border border-gray-100 p-3 flex flex-col min-h-0">
+                        <div class="flex items-center justify-between mb-2 flex-shrink-0">
+                            <div>
+                                <h2 class="text-sm font-semibold text-gray-800">设备状态</h2>
+                                <p class="text-gray-400 text-xs">当前连接的设备</p>
+                            </div>
+                            <a href="/agent" class="text-blue-600 hover:text-blue-700 text-xs font-medium flex items-center">
+                                <span>设备管理</span>
+                                <i class="fa fa-arrow-right ml-1"></i>
+                            </a>
+                        </div>
+                        <div id="device-status" class="overflow-y-auto flex-1 min-h-0" style="max-height: calc(100vh - 340px);">
+                            <div class="flex flex-col items-center justify-center py-4 text-gray-400 text-xs">
+                                <i class="fa fa-spinner fa-spin text-lg mb-1"></i>
+                                <span>加载中...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/dashboard/stats');
+                const data = await response.json();
+
+                const elProjects = document.getElementById('stat-projects');
+                if (!elProjects) return; // SPA 切换后 DOM 已被替换
+                elProjects.textContent = data.total_projects;
+                document.getElementById('stat-scripts').textContent = data.total_scripts;
+                document.getElementById('stat-tasks').textContent = data.total_tasks;
+                document.getElementById('stat-devices').textContent = data.online_devices;
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+
+        async function loadRecentTasks() {
+            try {
+                const response = await fetch('/api/dashboard/recent-tasks?limit=5');
+                const tasks = await response.json();
+
+                const tbody = document.getElementById('recent-tasks');
+                if (!tbody) return; // SPA 切换后 DOM 已被替换
+                if (tasks.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="text-center py-4 text-gray-400 text-xs">
+                                <i class="fa fa-inbox text-lg mb-1 block"></i>
+                                暂无任务记录
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = tasks.map(task => `
+                    <tr class="border-b border-gray-50 hover:bg-gray-50">
+                        <td class="py-1.5 px-2 text-xs text-gray-700 truncate max-w-0" style="max-width: 120px;">
+                            ${task.name || task.task_name || task.remark || task.task_text || '任务-' + task.id}
+                        </td>
+                        <td class="py-1.5 px-2">
+                            <span class="status-badge status-${task.status}">${getStatusText(task.status)}</span>
+                        </td>
+                        <td class="py-1.5 px-2 text-xs text-gray-400">${formatTime(task.created_at)}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load recent tasks:', error);
+            }
+        }
+
+        function getDeviceDisplayName(device) {
+            if (!device) return '未知设备';
+            const name = device.device_display_name || [device.brand, device.model].filter(Boolean).join(' ');
+            return name && name.trim() ? name : '未知设备';
+        }
+
+        async function loadDeviceStatus() {
+            try {
+                const response = await fetch('/api/devices');
+                const data = await response.json();
+                const devices = data.devices || [];
+
+                const container = document.getElementById('device-status');
+                if (!container) return; // SPA 切换后 DOM 已被替换
+                if (devices.length === 0) {
+                    container.innerHTML = `
+                        <div class="flex flex-col items-center justify-center py-4 text-gray-400 text-xs">
+                            <i class="fa fa-mobile text-2xl mb-1"></i>
+                            <span>暂无连接设备</span>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = devices.map(device => `
+                    <div class="flex items-center py-2 px-2 border-b border-gray-50 hover:bg-gray-50">
+                        <div class="w-7 h-7 rounded-md bg-gradient-to-br from-green-400 to-green-500 flex items-center justify-center mr-2">
+                            <i class="fa fa-mobile text-white text-xs"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-medium text-gray-800 truncate">${getDeviceDisplayName(device)}</p>
+                            <p class="text-xs text-gray-400 truncate">${device.status || '在线'}</p>
+                        </div>
+                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load device status:', error);
+            }
+        }
+
+        function getStatusText(status) {
+            const statusMap = {
+                'running': '运行中',
+                'finished': '已完成',
+                'failed': '失败',
+                'pending': '等待中',
+                'cancelled': '已取消'
+            };
+            return statusMap[status] || status;
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            const hasTimezone = timestamp.includes('+') || timestamp.includes('Z');
+            const ts = hasTimezone ? timestamp : timestamp.replace(' ', 'T') + 'Z';
+            const date = new Date(ts);
+            const now = new Date();
+            const diff = now - date;
+
+            if (diff < 60000) return '刚刚';
+            if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+            return date.toLocaleDateString('zh-CN');
+        }
+
+        var charts = {};
+
+        function initCharts() {
+            // Destroy existing charts before re-creating (SPA re-navigation)
+            Object.values(charts).forEach(c => { if (c) c.destroy(); });
+            charts = {};
+            const commonOpts = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                    y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 9 } } }
+                }
+            };
+
+            charts.successRate = new Chart(document.getElementById('chart-success-rate'), {
+                type: 'line',
+                data: { labels: [], datasets: [
+                    { label: '成功数', data: [], borderColor: '#22c55e', backgroundColor: '#22c55e33', tension: 0.3, fill: true },
+                    { label: '失败数', data: [], borderColor: '#e11d48', backgroundColor: '#e11d4833', tension: 0.3, fill: true }
+                ]},
+                options: commonOpts
+            });
+
+            charts.executionDuration = new Chart(document.getElementById('chart-execution-duration'), {
+                type: 'line',
+                data: { labels: [], datasets: [
+                    { label: '平均(秒)', data: [], borderColor: '#3b82f6', tension: 0.3 },
+                    { label: 'P95(秒)', data: [], borderColor: '#f59e0b', tension: 0.3 }
+                ]},
+                options: commonOpts
+            });
+
+            charts.deviceActivity = new Chart(document.getElementById('chart-device-activity'), {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: commonOpts
+            });
+
+            charts.projectHeat = new Chart(document.getElementById('chart-project-heat'), {
+                type: 'bar',
+                data: { labels: [], datasets: [
+                    { label: '任务数', data: [], backgroundColor: '#3b82f699' },
+                    { label: '成功率%', data: [], backgroundColor: '#22c55e99' }
+                ]},
+                options: commonOpts
+            });
+
+            // Apply any trends data that arrived before Chart.js was loaded
+            if (_pendingTrendsData) {
+                updateCharts(_pendingTrendsData);
+                _pendingTrendsData = null;
+            }
+        }
+
+        var _pendingTrendsData = null;
+
+        async function loadTrends(days = 7) {
+            updateRangeButtons(days);
+            var trendStartEl = document.getElementById('trend-start');
+            var trendEndEl = document.getElementById('trend-end');
+            if (trendStartEl) trendStartEl.value = '';
+            if (trendEndEl) trendEndEl.value = '';
+            try {
+                var data = await (await fetch(`/api/dashboard/trends?days=${days}`)).json();
+                if (charts.successRate) {
+                    updateCharts(data);
+                } else {
+                    // Charts not ready yet (Chart.js loading async) - stash data for later
+                    _pendingTrendsData = data;
+                }
+            } catch (e) { console.error('Failed to load trends:', e); }
+        }
+
+        async function loadTrendsByRange() {
+            var start = document.getElementById('trend-start').value;
+            var end = document.getElementById('trend-end').value;
+            if (!start || !end) return;
+            try {
+                var data = await (await fetch(`/api/dashboard/trends?start=${start}&end=${end}`)).json();
+                if (charts.successRate) {
+                    updateCharts(data);
+                } else {
+                    _pendingTrendsData = data;
+                }
+            } catch (e) { console.error('Failed to load trends by range:', e); }
+        }
+
+        async function refreshAll(e) {
+            const btn = e?.target?.closest('button');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> 刷新中...'; }
+            try {
+                await Promise.all([loadStats(), loadRecentTasks(), loadDeviceStatus()]);
+                await loadTrends(document.querySelector('.trend-range-btn.bg-blue-500')?.dataset?.days || 7);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-refresh"></i> 刷新'; }
+            }
+        }
+
+        let progressWs = null;
+
+        function connectProgressWs(taskId) {
+            if (progressWs) progressWs.close();
+            const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            progressWs = new WebSocket(`${proto}://${window.location.host}/ws/progress/${taskId}`);
+
+            progressWs.onmessage = function(evt) {
+                try {
+                    const data = JSON.parse(evt.data);
+                    if (data.type === 'progress') {
+                        const section = document.getElementById('progress-section');
+                        const bar = document.getElementById('progress-bar');
+                        const text = document.getElementById('progress-text');
+                        const pct = document.getElementById('progress-percent');
+                        section.classList.remove('hidden');
+                        bar.style.width = data.percent + '%';
+                        text.textContent = data.step + '/' + data.total;
+                        pct.textContent = Math.round(data.percent) + '%';
+                        if (data.percent >= 100) {
+                            setTimeout(() => { section.classList.add('hidden'); bar.style.width = '0%'; }, 3000);
+                        }
+                    }
+                } catch(e) { console.error('Progress parse error:', e); }
+            };
+
+            progressWs.onclose = function() { progressWs = null; };
+        }
+
+        function updateRangeButtons(activeDays) {
+            document.querySelectorAll('.trend-range-btn').forEach(btn => {
+                const d = parseInt(btn.dataset.days);
+                btn.className = d === activeDays
+                    ? 'trend-range-btn px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white'
+                    : 'trend-range-btn px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-blue-100';
+            });
+        }
+
+        function updateCharts(data) {
+            if (!charts.successRate || !charts.executionDuration) return; // charts not initialized yet
+            charts.successRate.data.labels = data.success_rate.map(d => d.date.slice(5));
+            charts.successRate.data.datasets[0].data = data.success_rate.map(d => d.success);
+            charts.successRate.data.datasets[1].data = data.success_rate.map(d => d.failed);
+            charts.successRate.update();
+
+            charts.executionDuration.data.labels = data.execution_duration.map(d => d.date.slice(5));
+            charts.executionDuration.data.datasets[0].data = data.execution_duration.map(d => d.avg_seconds || 0);
+            charts.executionDuration.data.datasets[1].data = data.execution_duration.map(d => d.p95_seconds || 0);
+            charts.executionDuration.update();
+
+            const deviceColors = ['#3b82f6','#22c55e','#f59e0b','#8b5cf6','#e11d48','#06b6d4','#ec4899','#14b8a6'];
+            const allDevices = new Set();
+            data.device_activity.forEach(d => Object.keys(d.devices).forEach(k => allDevices.add(k)));
+            charts.deviceActivity.data.labels = data.device_activity.map(d => d.date.slice(5));
+            charts.deviceActivity.data.datasets = Array.from(allDevices).map((dev, i) => ({
+                label: dev,
+                data: data.device_activity.map(d => d.devices[dev] || 0),
+                borderColor: deviceColors[i % deviceColors.length],
+                tension: 0.3
+            }));
+            charts.deviceActivity.update();
+
+            charts.projectHeat.data.labels = data.project_heat.map(d => d.name);
+            charts.projectHeat.data.datasets[0].data = data.project_heat.map(d => d.task_count);
+            charts.projectHeat.data.datasets[1].data = data.project_heat.map(d => d.success_rate);
+            charts.projectHeat.update();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // 仅首次整页加载时由 DOMContentLoaded 触发；SPA导航由 Router.runPageInit 处理
+            loadStats();
+            loadRecentTasks();
+            loadDeviceStatus();
+            try { initCharts(); } catch(e) { console.warn('initCharts failed:', e); }
+            loadTrends(7);
+        });
+    </script>
+</body>
+</html>

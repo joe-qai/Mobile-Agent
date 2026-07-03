@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APK管理 - Agent Platform</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <script src="/static/js/ui-utils.js"></script>
+    <script src="/static/js/common.js"></script>
+    <style>
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); transition: all 0.3s ease; }
+        .btn-primary:hover { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
+
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-overlay.show { display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease; }
+        .modal-content { background: white; border-radius: 16px; padding: 20px; width: 90%; max-width: 400px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); animation: slideUp 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50">
+    <div class="flex h-screen">
+        <!-- 侧边栏 -->
+        {% include "partials/sidebar.html" %}
+
+        <!-- 主内容区 - 一屏自适应 -->
+        <main id="main-content" class="ml-56 p-4 flex-1 flex flex-col overflow-hidden" data-sidebar-main>
+            <!-- 标题栏 -->
+            <div class="flex items-center justify-between mb-3 flex-shrink-0">
+                <div>
+                    <h1 class="text-lg font-bold text-gray-800">APK管理</h1>
+                    <p class="text-gray-500 text-xs">管理和安装Android应用包</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="batch-delete-btn" onclick="batchDeleteApks()" class="border border-red-200 text-red-600 px-3 py-2 rounded-xl flex items-center hover:bg-red-50 transition-all text-xs" style="display:none">
+                        <i class="fa fa-trash mr-1"></i>批量删除
+                    </button>
+                    <button onclick="openUploadModal()" class="btn-primary text-white px-4 py-2 rounded-xl font-medium flex items-center cursor-pointer text-sm">
+                        <i class="fa fa-upload mr-2"></i>上传APK
+                    </button>
+                </div>
+            </div>
+
+            <!-- APK列表 - 一屏自适应 -->
+            <div class="bg-white rounded-xl shadow border border-gray-100 p-4 flex-1 flex flex-col min-h-0 flex-grow">
+                <div class="overflow-y-auto flex-1 min-h-0" style="max-height: calc(100vh - 160px);">
+                    <table class="w-full">
+                        <thead class="sticky top-0 bg-white">
+                            <tr class="border-b border-gray-200">
+                                <th class="w-8 py-2.5 px-3">
+                                    <input type="checkbox" id="select-all" onchange="toggleAllApks()" class="rounded border-gray-300">
+                                </th>
+                                <th class="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">APK名称</th>
+                                <th class="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">包名</th>
+                                <th class="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">版本</th>
+                                <th class="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">大小</th>
+                                <th class="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">状态</th>
+                                <th class="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">备注</th>
+                                <th class="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">创建时间</th>
+                                <th class="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="apks-table" class="overflow-y-auto">
+                            <tr>
+                                <td colspan="6" class="text-center py-8 text-gray-400 text-xs">
+                                    <i class="fa fa-spinner fa-spin text-lg mb-1 block"></i>
+                                    加载中...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="pagination-container" class="flex items-center justify-center mt-3 space-x-2 flex-shrink-0"></div>
+            </div>
+
+            <!-- 上传APK弹窗 -->
+            <div id="upload-modal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-base font-bold text-gray-800">上传APK</h2>
+                        <button onclick="closeUploadModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fa fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    <form id="upload-form" onsubmit="submitUpload(event)">
+                        <div class="mb-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1.5">应用名称</label>
+                            <input type="text" id="apk-name" required
+                                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                   placeholder="请输入应用名称">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1.5">APK文件</label>
+                            <input type="file" id="apk-file" accept=".apk" required
+                                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1.5">版本号</label>
+                            <input type="text" id="apk-version" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                   placeholder="1.0.0">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1.5">备注</label>
+                            <textarea id="apk-remark" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" rows="2"
+                                      placeholder="可选备注"></textarea>
+                        </div>
+                        <div class="flex justify-end space-x-2">
+                            <button type="button" onclick="closeUploadModal()"
+                                    class="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm">取消</button>
+                            <button type="submit" id="upload-submit-btn"
+                                    class="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:opacity-90 text-sm">上传</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 设备选择弹窗 -->
+            <div id="install-modal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-base font-bold text-gray-800">选择安装设备</h2>
+                        <button onclick="closeInstallModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fa fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    <div id="device-list" class="max-h-60 overflow-y-auto">
+                        <!-- 设备列表动态生成 -->
+                    </div>
+                    <div class="mt-4 flex justify-end space-x-2">
+                        <button type="button" onclick="closeInstallModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm">取消</button>
+                        <button type="button" onclick="confirmInstall()" class="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:opacity-90 text-sm">确认安装</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 安装进度弹窗 -->
+            <div id="progress-modal" class="modal-overlay">
+                <div class="modal-content text-center">
+                    <div class="mb-4">
+                        <i class="fa fa-spinner fa-spin text-4xl text-blue-500"></i>
+                    </div>
+                    <h2 id="progress-title" class="text-base font-bold text-gray-800 mb-2">正在安装...</h2>
+                    <p id="progress-message" class="text-sm text-gray-500">请稍候</p>
+                </div>
+            </div>
+
+            <!-- 上传进度弹窗 -->
+            <div id="upload-progress-modal" class="modal-overlay">
+                <div class="modal-content text-center">
+                    <div class="mb-4">
+                        <i class="fa fa-cloud-upload text-4xl text-blue-500"></i>
+                    </div>
+                    <h2 id="upload-progress-title" class="text-base font-bold text-gray-800 mb-2">正在上传...</h2>
+                    <p id="upload-progress-message" class="text-sm text-gray-500">请稍候</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let allApks = [];
+        let devices = [];
+        var PAGE_SIZE = 10;
+        let currentPage = 1;
+        let totalItems = 0;
+        let pendingInstallApkId = null;
+        let selectedDevices = [];
+
+        async function loadApks(page = 1) {
+            currentPage = page;
+
+            try {
+                const response = await fetch(`/api/apks/?page=${page}&size=${PAGE_SIZE}`);
+                const data = await response.json();
+                const pageData = Array.isArray(data) ? data : (data.items || []);
+                totalItems = data.total || pageData.length;
+                allApks = pageData;
+
+                const tbody = document.getElementById('apks-table');
+                if (!tbody) return; // SPA 切换后 DOM 已被替换
+                tbody.innerHTML = '';
+
+                if (pageData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-gray-400 text-xs"><i class="fa fa-android text-lg mb-1 block"></i>暂无APK</td></tr>';
+                    updatePagination();
+                    return;
+                }
+
+                pageData.forEach(apk => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-50 hover:bg-gray-50 transition-colors';
+                    
+                    // 获取状态显示
+                    const status = apk.status || 'completed';
+                    let statusBadge = '';
+                    if (status === 'uploading') {
+                        statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"><i class="fa fa-spinner fa-spin mr-1"></i>上传中</span>';
+                    } else if (status === 'completed') {
+                        statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><i class="fa fa-check mr-1"></i>已完成</span>';
+                    } else if (status === 'failed') {
+                        statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><i class="fa fa-times mr-1"></i>失败</span>';
+                    } else {
+                        statusBadge = '<span class="text-xs text-gray-400">-</span>';
+                    }
+                    
+                    // 是否禁用安装按钮（上传中时禁用或ID无效时禁用）
+                    const isUploading = status === 'uploading' || !apk.id;
+                    const installAction = isUploading ? 'return false;' : `openInstallModal(${apk.id})`;
+                    const installClasses = isUploading
+                        ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                        : 'hover:bg-blue-50 text-blue-600 hover:text-blue-800';
+                    const installTitle = isUploading ? '上传中，请等待' : '安装';
+                    const installButton = apk.id
+                        ? `<button ${isUploading ? 'disabled' : ''} onclick="${installAction}" class="text-xs p-1.5 rounded transition-colors ${installClasses}" title="${installTitle}"><i class="fa fa-download"></i></button>`
+                        : '';
+                    const deleteButton = apk.id
+                        ? `<button onclick="deleteApk(${apk.id})" class="text-xs p-1.5 rounded hover:bg-red-50 text-red-600 hover:text-red-800 transition-colors" title="删除"><i class="fa fa-trash"></i></button>`
+                        : '';
+                    
+                    row.innerHTML = `
+                            <td class="py-2.5 px-3"><input type="checkbox" class="apk-checkbox rounded border-gray-300" value="${apk.id}" onchange="updateSelectAll()"></td>
+                            <td class="py-2.5 px-3 text-sm text-gray-800 truncate max-w-[120px]">${apk.name}</td>
+                        <td class="py-2.5 px-3 text-xs text-gray-500 font-mono truncate max-w-[150px]">${apk.package_name || '-'}</td>
+                        <td class="py-2.5 px-3 text-xs text-gray-500">${apk.version || '-'}</td>
+                        <td class="py-2.5 px-3 text-xs text-gray-500">${apk.file_size ? apk.file_size + 'MB' : '-'}</td>
+                        <td class="py-2.5 px-3 text-xs">${statusBadge}</td>
+                        <td class="py-2.5 px-3 text-xs text-gray-500 truncate max-w-[100px]">${apk.remark || '-'}</td>
+                        <td class="py-2.5 px-3 text-xs text-gray-400">${formatDateTime(apk.created_at)}</td>
+                        <td class="py-2.5 px-3">
+                            ${installButton}
+                            ${deleteButton}
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                updatePagination();
+            } catch (error) {
+                console.error('Failed to load APKs:', error);
+            }
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+            const container = document.getElementById('pagination-container');
+            if (container) {
+                container.innerHTML = `
+                    <span class="text-xs text-gray-600">共 ${totalItems} 条</span>
+                    <span class="text-xs text-gray-400 mx-1">|</span>
+                    <span class="text-xs text-gray-600">第 ${currentPage}/${totalPages || 1} 页</span>
+                    <button onclick="loadApks(${currentPage - 1})"
+                            class="px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            ${currentPage <= 1 ? 'disabled' : ''}>
+                        <i class="fa fa-chevron-left mr-0.5"></i>上一页
+                    </button>
+                    <button onclick="loadApks(${currentPage + 1})"
+                            class="px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            ${currentPage >= totalPages ? 'disabled' : ''}>
+                        下一页<i class="fa fa-chevron-right ml-0.5"></i>
+                    </button>
+                `;
+            }
+        }
+
+        async function loadDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                const data = await response.json();
+                devices = data.devices || [];
+            } catch (error) {
+                console.error('Failed to load devices:', error);
+                devices = [];
+            }
+        }
+
+        function openInstallModal(apkId) {
+            pendingInstallApkId = apkId;
+            selectedDevices = [];
+            const deviceList = document.getElementById('device-list');
+
+            if (devices.length === 0) {
+                deviceList.innerHTML = '<div class="text-center py-4 text-gray-400 text-xs"><i class="fa fa-mobile text-lg mb-1 block"></i>暂无连接设备</div>';
+            } else {
+                deviceList.innerHTML = devices.map(device => `
+                    <div class="flex items-center py-2.5 px-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer rounded-lg mb-1"
+                         onclick="toggleDeviceSelection('${device.id}', this)">
+                        <input type="checkbox" class="w-4 h-4 mr-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500" id="device-${device.id}">
+                        <div class="w-8 h-8 rounded-md bg-gradient-to-br from-green-400 to-green-500 flex items-center justify-center mr-3">
+                            <i class="fa fa-mobile text-white text-sm"></i>
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-gray-800">${device.name || device.id}</p>
+                            <p class="text-xs text-gray-400">${device.model || '未知设备'}</p>
+                        </div>
+                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('install-modal').classList.add('show');
+        }
+
+        function toggleDeviceSelection(deviceId, element) {
+            const checkbox = element.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            
+            const index = selectedDevices.indexOf(deviceId);
+            if (checkbox.checked && index === -1) {
+                selectedDevices.push(deviceId);
+            } else if (!checkbox.checked && index !== -1) {
+                selectedDevices.splice(index, 1);
+            }
+        }
+
+        function closeInstallModal() {
+            document.getElementById('install-modal').classList.remove('show');
+            pendingInstallApkId = null;
+        }
+
+        async function confirmInstall() {
+            const apkId = parseInt(pendingInstallApkId);
+            if (!apkId || isNaN(apkId)) {
+                UIUtils.error('安装失败', '无法获取APK信息，请刷新页面后重试');
+                return;
+            }
+
+            if (selectedDevices.length === 0) {
+                UIUtils.warning('提示', '请至少选择一个设备');
+                return;
+            }
+
+            closeInstallModal();
+
+            document.getElementById('progress-title').textContent = '正在安装...';
+            document.getElementById('progress-message').textContent = `正在安装到 ${selectedDevices.length} 个设备，请稍候`;
+            document.getElementById('progress-modal').classList.add('show');
+
+            try {
+                // 获取APK信息以获取包名
+                const apkResponse = await fetch(`/api/apks/${apkId}`);
+                const apkData = await apkResponse.json();
+                const packageName = apkData.package_name;
+                
+                const response = await fetch(`/api/apks/${apkId}/install`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        device_ids: selectedDevices,
+                        uninstall_first: true,
+                        package_name: packageName
+                    })
+                });
+                const result = await response.json();
+
+                document.getElementById('progress-modal').classList.remove('show');
+
+                if (result.success) {
+                    document.getElementById('progress-title').textContent = '安装成功';
+                    document.getElementById('progress-message').textContent = `已成功安装到 ${result.success_count || selectedDevices.length} 个设备`;
+                    document.getElementById('progress-modal').classList.add('show');
+                    setTimeout(() => {
+                        document.getElementById('progress-modal').classList.remove('show');
+                    }, 2000);
+                } else {
+                    const failMsg = result.message || '安装失败';
+                    const successCount = result.success_count || 0;
+                    if (successCount > 0) {
+                        UIUtils.warning(
+                            '安装结果',
+                            `${failMsg}\n成功安装: ${successCount} 个设备\n失败: ${selectedDevices.length - successCount} 个设备`
+                        );
+                    } else {
+                        UIUtils.error('安装失败', failMsg);
+                    }
+                }
+            } catch (error) {
+                document.getElementById('progress-modal').classList.remove('show');
+                console.error('Failed to install APK:', error);
+                UIUtils.error('安装失败', error.message);
+            }
+
+            pendingInstallApkId = null;
+            selectedDevices = [];
+        }
+        async function deleteApk(id) {
+            UIUtils.confirm({
+                title: '确认删除',
+                message: '确定要删除这个APK吗？',
+                type: 'danger',
+                okText: '删除',
+                onConfirm: async () => {
+                    try {
+                        const resp = await fetch(`/api/apks/${id}`, { method: 'DELETE' });
+                        if (resp.ok) {
+                            UIUtils.success('删除成功', 'APK已被删除');
+                            loadApks(currentPage);
+                        } else {
+                            const err = await resp.json();
+                            UIUtils.error('删除失败', err.detail || '未知错误');
+                        }
+                    } catch (error) {
+                        console.error('Failed to delete APK:', error);
+                        UIUtils.error('删除失败', '网络错误，请稍后重试');
+                    }
+                }
+            });
+        }
+
+        function toggleAllApks() {
+            const checked = document.getElementById('select-all').checked;
+            document.querySelectorAll('.apk-checkbox').forEach(cb => cb.checked = checked);
+            updateBatchButton();
+        }
+
+        function updateSelectAll() {
+            const all = document.querySelectorAll('.apk-checkbox');
+            const checked = document.querySelectorAll('.apk-checkbox:checked');
+            const selectAll = document.getElementById('select-all');
+            if (selectAll) selectAll.checked = all.length === checked.length && all.length > 0;
+            updateBatchButton();
+        }
+
+        function updateBatchButton() {
+            const checked = document.querySelectorAll('.apk-checkbox:checked');
+            const btn = document.getElementById('batch-delete-btn');
+            btn.style.display = checked.length > 0 ? 'inline-flex' : 'none';
+            if (checked.length > 0) {
+                btn.innerHTML = `<i class="fa fa-trash mr-1"></i>批量删除(${checked.length})`;
+            }
+        }
+
+        async function batchDeleteApks() {
+            const ids = Array.from(document.querySelectorAll('.apk-checkbox:checked')).map(cb => parseInt(cb.value));
+            if (ids.length === 0) {
+                UIUtils.warning('提示', '请先选择要删除的APK');
+                return;
+            }
+            UIUtils.confirm({
+                title: '批量删除',
+                message: `确定要删除选中的 ${ids.length} 个APK吗？此操作无法撤销。`,
+                type: 'danger',
+                okText: '删除',
+                onConfirm: async () => {
+                    try {
+                        const resp = await fetch('/api/apks/batch-delete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids })
+                        });
+                        const result = await resp.json();
+                        UIUtils.success('删除成功', `已删除 ${result.deleted_count} 个APK`);
+                        document.getElementById('select-all').checked = false;
+                        loadApks(currentPage);
+                    } catch (error) {
+                        console.error('Failed to batch delete:', error);
+                        UIUtils.error('批量删除失败', error.message);
+                    }
+                }
+            });
+        }
+
+        function openUploadModal() {
+            document.getElementById('upload-modal').classList.add('show');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('upload-modal').classList.remove('show');
+            document.getElementById('apk-file').value = '';
+            document.getElementById('apk-version').value = '';
+            document.getElementById('apk-remark').value = '';
+            document.getElementById('apk-name').value = '';
+        }
+
+        let isUploading = false;
+        let uploadAbortController = null;
+        const NORMAL_UPLOAD_MAX_SIZE = 50 * 1024 * 1024;
+
+        // 计算文件SHA256哈希
+        async function calculateFileHash(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // 生成上传ID
+        function createUploadId(fileHash) {
+            const randomPart = Math.random().toString(36).slice(2);
+            return `apk-${fileHash}-${Date.now()}-${randomPart}`;
+        }
+
+        // 检查秒传
+        async function checkSkipUpload(fileHash) {
+            try {
+                const resp = await fetch(`/api/apks/check-hash/${fileHash}`);
+                const result = await resp.json();
+                return result.exists ? result : null;
+            } catch {
+                return null;
+            }
+        }
+
+        async function uploadNormalApk(file, appName, version, remark) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('app_name', appName);
+            if (version) formData.append('version', version);
+            if (remark) formData.append('remark', remark);
+
+            const resp = await fetch('/api/apks/', {
+                method: 'POST',
+                body: formData,
+                signal: uploadAbortController?.signal
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({ detail: '上传失败' }));
+                throw new Error(err.detail || err.message || '上传失败');
+            }
+
+            return resp.json();
+        }
+
+        // 并发上传分片（使用Promise.all限制并发数）
+        async function uploadChunksWithConcurrency(chunks, file, uploadId, fileHash, onProgress) {
+            const maxConcurrency = 5; // 5个并发
+            const results = [];
+            let completed = 0;
+            const total = chunks.length;
+
+            async function uploadChunk(index) {
+                const { start, end } = chunks[index];
+                const chunkData = file.slice(start, end);
+                const formData = new FormData();
+                formData.append('chunk', chunkData, `${file.name}.part${index}`);
+                formData.append('upload_id', uploadId);
+                formData.append('chunk_index', index);
+                formData.append('total_chunks', total);
+                formData.append('file_name', file.name);
+                formData.append('file_hash', fileHash);
+
+                const resp = await fetch('/api/apks/chunk', {
+                    method: 'POST',
+                    body: formData,
+                    signal: uploadAbortController?.signal
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ detail: '分片上传失败' }));
+                    throw new Error(err.detail || err.message || '分片上传失败');
+                }
+
+                const result = await resp.json();
+                completed++;
+                onProgress(completed, total);
+                return result;
+            }
+
+            // 分批上传，控制并发数
+            for (let i = 0; i < chunks.length; i += maxConcurrency) {
+                const batch = chunks.slice(i, Math.min(i + maxConcurrency, chunks.length));
+                const promises = batch.map((_, idx) => uploadChunk(i + idx));
+                const batchResults = await Promise.all(promises);
+                results.push(...batchResults);
+            }
+
+            return results;
+        }
+
+        // 获取已上传的分片列表（断点续传）
+        async function getUploadedChunks(uploadId) {
+            try {
+                const resp = await fetch(`/api/apks/chunks/${uploadId}`);
+                const result = await resp.json();
+                return result.uploaded || [];
+            } catch {
+                return [];
+            }
+        }
+
+        // 合并分片并校验
+        async function mergeChunks(uploadId, fileHash, fileName, appName, version, remark) {
+            const resp = await fetch('/api/apks/merge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    upload_id: uploadId,
+                    file_hash: fileHash,
+                    file_name: fileName,
+                    name: appName,
+                    version: version,
+                    remark: remark
+                })
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({ detail: '合并失败' }));
+                throw new Error(err.detail || err.message || '合并失败');
+            }
+
+            return resp.json();
+        }
+
+        // 主上传流程
+        async function submitUpload(event) {
+            event.preventDefault();
+            
+            if (isUploading) return;
+            
+            const file = document.getElementById('apk-file').files[0];
+            if (!file) {
+                UIUtils.warning('请选择文件', '请先选择要上传的APK文件');
+                return;
+            }
+            
+            const appName = document.getElementById('apk-name').value.trim();
+            if (!appName) { 
+                UIUtils.warning('请输入应用名称', '应用名称不能为空'); 
+                return; 
+            }
+
+            const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+            const version = document.getElementById('apk-version').value.trim();
+            const remark = document.getElementById('apk-remark').value.trim();
+
+            isUploading = true;
+            uploadAbortController = new AbortController();
+            const submitBtn = document.getElementById('upload-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i>处理中...';
+            submitBtn.style.opacity = '0.7';
+            
+            closeUploadModal();
+            document.getElementById('upload-progress-title').textContent = '正在处理...';
+            document.getElementById('upload-progress-message').textContent = '计算文件哈希中...';
+            document.getElementById('upload-progress-modal').classList.add('show');
+            
+            try {
+                // 1. 计算文件哈希
+                document.getElementById('upload-progress-message').textContent = '计算文件哈希中...';
+                const fileHash = await calculateFileHash(file);
+                console.log(`File hash: ${fileHash}`);
+
+                // 2. 检查秒传
+                document.getElementById('upload-progress-message').textContent = '检查是否已存在...';
+                const existingApk = await checkSkipUpload(fileHash);
+                if (existingApk) {
+                    UIUtils.success('秒传成功', `APK "${existingApk.name}" 已存在，无需重复上传`);
+                    loadApks(1);
+                    return;
+                }
+
+                if (file.size <= NORMAL_UPLOAD_MAX_SIZE) {
+                    document.getElementById('upload-progress-title').textContent = '正在上传 APK...';
+                    document.getElementById('upload-progress-message').textContent = '上传中...';
+                    const result = await uploadNormalApk(file, appName, version, remark);
+                    if (result.success && (result.apk_id || result.id)) {
+                        UIUtils.success('上传成功', `APK "${appName}" 上传完成，正在解析包名...`);
+                        loadApks(1);
+                        return;
+                    }
+                    throw new Error(result.message || '上传失败');
+                }
+
+                // 3. 切片
+                const chunkSize = 8 * 1024 * 1024; // 8MB/片
+                const totalChunks = Math.ceil(file.size / chunkSize);
+                const chunks = [];
+                for (let i = 0; i < totalChunks; i++) {
+                    chunks.push({
+                        index: i,
+                        start: i * chunkSize,
+                        end: Math.min((i + 1) * chunkSize, file.size)
+                    });
+                }
+
+                // 4. 创建上传ID
+                const uploadId = createUploadId(fileHash);
+                console.log(`Upload ID: ${uploadId}`);
+
+                // 5. 断点续传：获取已上传的分片
+                document.getElementById('upload-progress-message').textContent = '检查断点续传状态...';
+                const uploadedChunks = await getUploadedChunks(uploadId);
+                const pendingChunks = chunks.filter(c => !uploadedChunks.includes(c.index));
+                
+                if (pendingChunks.length === 0) {
+                    // 所有分片已上传，直接合并
+                    document.getElementById('upload-progress-title').textContent = '正在合并文件...';
+                    document.getElementById('upload-progress-message').textContent = '合并中...';
+                } else {
+                    // 6. 并发上传分片
+                    document.getElementById('upload-progress-title').textContent = '正在上传 APK...';
+                    const skipCount = totalChunks - pendingChunks.length;
+                    document.getElementById('upload-progress-message').textContent = `已跳过 ${skipCount} 个分片，正在上传剩余 ${pendingChunks.length} 个...`;
+                    
+                    await uploadChunksWithConcurrency(pendingChunks, file, uploadId, fileHash, (done, total) => {
+                        const percent = Math.round(((skipCount + done) / total) * 100);
+                        document.getElementById('upload-progress-message').textContent = `${percent}% (${skipCount + done}/${total})`;
+                    });
+                }
+
+                // 7. 合并分片并校验
+                document.getElementById('upload-progress-title').textContent = '正在合并文件...';
+                document.getElementById('upload-progress-message').textContent = '合并并校验中...';
+                const result = await mergeChunks(uploadId, fileHash, file.name, appName, version, remark);
+
+                if (result.success && (result.apk_id || result.id)) {
+                    UIUtils.success('上传成功', `APK "${appName}" 上传完成，正在解析包名...`);
+                    loadApks(1);
+                    
+                    let refreshCount = 0;
+                    const maxRefresh = 10;
+                    const refreshInterval = setInterval(async () => {
+                        await loadApks(1);
+                        refreshCount++;
+                        if (refreshCount >= maxRefresh) {
+                            clearInterval(refreshInterval);
+                        }
+                    }, 3000);
+                } else {
+                    throw new Error(result.message || '上传失败');
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('上传已取消');
+                    UIUtils.info('上传已取消', '上传操作已被用户取消');
+                } else {
+                    console.error('Failed to upload APK:', error);
+                    UIUtils.error('上传失败', `错误: ${error.message || '请检查网络连接'}`);
+                }
+            } finally {
+                document.getElementById('upload-progress-modal').classList.remove('show');
+                isUploading = false;
+                uploadAbortController = null;
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '上传';
+                submitBtn.style.opacity = '1';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            PageInit.init();
+            await loadDevices();
+            await loadApks();
+        });
+    </script>
+</body>
+</html>

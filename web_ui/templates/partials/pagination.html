@@ -1,0 +1,15 @@
+<div class="flex items-center justify-center mt-6 space-x-2">
+    <span class="text-sm text-gray-600">共 {{ total_items }} 条记录</span>
+    <span class="text-sm text-gray-400">|</span>
+    <span class="text-sm text-gray-600">第 {{ current_page }}/{{ total_pages }} 页</span>
+    <button onclick="goToPage({{ current_page - 1 }})"
+            class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-all"
+            {% if current_page <= 1 %}disabled{% endif %}>
+        <i class="fa fa-chevron-left mr-1"></i>上一页
+    </button>
+    <button onclick="goToPage({{ current_page + 1 }})"
+            class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-all"
+            {% if current_page >= total_pages %}disabled{% endif %}>
+        下一页<i class="fa fa-chevron-right ml-1"></i>
+    </button>
+</div>

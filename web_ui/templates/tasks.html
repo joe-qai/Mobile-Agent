@@ -1,0 +1,1711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务管理 - Agent Platform</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <script src="/static/js/ui-utils.js"></script>
+    <script src="/static/js/common.js"></script>
+    <style>
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); transition: all 0.3s ease; }
+        .btn-primary:hover { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
+        
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-overlay.show { display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease; }
+        .modal-content { background: white; border-radius: 20px; padding: 24px; width: 90%; max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); animation: slideUp 0.3s ease; }
+        .task-modal-content { max-height: min(88vh, 760px); display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+        .task-modal-header { padding: 20px 24px 12px; margin-bottom: 0; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
+        .task-modal-content form { overflow-y: auto; padding: 16px 24px 20px; }
+        .task-modal-actions { position: sticky; bottom: 0; background: white; border-top: 1px solid #f1f5f9; padding-top: 12px; margin-top: 4px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+        .status-pending { background: linear-gradient(135deg, #f3f4f6, #e5e7eb); color: #6b7280; }
+        .status-running { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+        .status-finished { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; }
+        .status-failed { background: linear-gradient(135deg, #ffe4e6, #fecdd3); color: #e11d48; }
+        .status-cancelled { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4338ca; }
+        
+        .dimension-item { display: inline-flex; align-items: center; border: 1px solid #fdba74; border-radius: 0.5rem; padding: 0.15rem 0.5rem; cursor: pointer; transition: all 0.2s; }
+        .dimension-item:hover { border-color: #f97316; background-color: #fff7ed; }
+        .dimension-item input[type="checkbox"] { margin: 0; width: 0.75rem; height: 0.75rem; accent-color: #f97316; }
+        .dimension-item span { font-size: 0.7rem; line-height: 1.1; color: #475569; margin-left: 0.25rem; }
+        
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50">
+    <div class="flex h-screen">
+        <!-- 侧边栏 -->
+        {% include "partials/sidebar.html" %}
+        
+        <!-- 主内容区 -->
+        <main id="main-content" class="ml-56 p-5 flex-1 flex flex-col overflow-hidden" data-sidebar-main>
+            <div class="flex items-center justify-between mb-4 flex-shrink-0">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">任务管理</h1>
+                    <p class="text-gray-500 text-sm">管理和监控自动化测试任务</p>
+                </div>
+            </div>
+
+            <!-- 筛选栏 -->
+            <div class="bg-white rounded-xl shadow border border-gray-100 p-3 mb-4 flex-shrink-0">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center">
+                            <label class="text-xs font-medium text-gray-600 mr-2">项目:</label>
+                            <select id="project-filter" class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500" onchange="onFilterChange()">
+                                <option value="">全部项目</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center">
+                            <label class="text-xs font-medium text-gray-600 mr-2">状态:</label>
+                            <select id="status-filter" class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500" onchange="loadTasks()">
+                                <option value="">全部状态</option>
+                                <option value="pending">待执行</option>
+                                <option value="running">运行中</option>
+                                <option value="finished">已完成</option>
+                                <option value="failed">失败</option>
+                                <option value="cancelled">已取消</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="batch-delete-btn" onclick="batchDeleteTasks()" class="text-xs px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg transition-all" style="display:none">
+                            <i class="fa fa-trash mr-1"></i>批量删除
+                        </button>
+                        <button onclick="openCreateModal()" class="btn-primary text-white px-3 py-1.5 rounded-lg flex items-center text-xs shadow-sm">
+                            <i class="fa fa-plus mr-1"></i>创建任务
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 任务列表 -->
+            <div class="bg-white rounded-xl shadow border border-gray-100 p-4 flex-1 flex flex-col min-h-0 flex-grow">
+                <div class="overflow-x-auto flex-1 min-h-0" style="max-height: calc(100vh - 240px);">
+                    <table class="w-full">
+                        <thead class="sticky top-0 bg-white">
+                            <tr class="border-b border-gray-200">
+                                <th class="w-8 py-3 px-2"><input type="checkbox" id="select-all" onchange="toggleAllTasks()" class="rounded border-gray-300"></th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">任务名称</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">测试类型</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">设备</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">状态</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">备注</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">创建时间</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasks-table" class="overflow-y-auto">
+                            <tr>
+                                <td colspan="8" class="text-center py-8 text-gray-400 text-xs">
+                                    <i class="fa fa-spinner fa-spin text-lg mb-1 block"></i>
+                                    加载中...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="pagination-container" class="flex items-center justify-center mt-4 space-x-2 flex-shrink-0"></div>
+            </div>
+        <!-- 创建任务弹窗 -->
+        <div id="modal" class="modal-overlay">
+            <div class="modal-content task-modal-content" style="max-width: 600px;">
+                <div class="task-modal-header flex items-center justify-between">
+                    <h2 id="modal-title" class="text-lg font-bold text-gray-800">创建任务</h2>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+
+                <form id="task-form" onsubmit="submitTask(event)">
+                    <input type="hidden" id="task-id">
+
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">所属项目</label>
+                        <select id="task-project" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" onchange="onFilterChange(); updateTaskSaveButton()">
+                            <option value="">请选择项目</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">目标系统</label>
+                        <div class="flex gap-3">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="task-system" value="Android" checked onclick="onSystemChange()" class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                                <span class="ml-2 text-sm text-gray-700">Android</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="task-system" value="iOS" onclick="onSystemChange()" class="w-4 h-4 text-orange-600 border-gray-300 focus:ring-orange-500">
+                                <span class="ml-2 text-sm text-gray-700">iOS</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="task-system" value="HarmonyOS" onclick="onSystemChange()" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">HarmonyOS</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-xs font-semibold text-gray-700">脚本（用例）<span id="selected-scripts-count" class="text-blue-500 text-xs ml-1"></span></label>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="toggleScriptsGroup()" class="text-xs text-gray-500 hover:text-gray-700">
+                                    <i id="scripts-toggle-icon" class="fa fa-chevron-down"></i>
+                                </button>
+                                <button type="button" onclick="selectAllScripts()" class="text-xs text-blue-600 hover:text-blue-800">全选</button>
+                                <button type="button" onclick="deselectAllScripts()" class="text-xs text-gray-600 hover:text-gray-800">反选</button>
+                            </div>
+                        </div>
+                        <div id="task-scripts" class="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                            <!-- 由 JS 动态生成 checkbox -->
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">测试类型</label>
+                        <div class="flex gap-4">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="test-type" value="normal" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" onchange="updateDimensionVisibility()">
+                                <span class="ml-2 text-sm text-gray-700">普通测试</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="test-type" value="ui-compatibility" checked class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500" onchange="updateDimensionVisibility()">
+                                <span class="ml-2 text-sm text-gray-700">UI兼容性测试</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-4" id="compatibility-dimensions-section" style="display: none;">
+                        <div id="compatibility-dimensions" class="flex flex-wrap gap-2">
+                            <!-- 由 JS 动态生成 checkbox -->
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-xs font-semibold text-gray-700">设备 <span id="selected-devices-count" class="text-blue-500 text-xs ml-1"></span></label>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="toggleDevicesGroup()" class="text-xs text-gray-500 hover:text-gray-700">
+                                    <i id="devices-toggle-icon" class="fa fa-chevron-down"></i>
+                                </button>
+                                <button type="button" onclick="selectAllDevices()" class="text-xs text-blue-600 hover:text-blue-800">全选</button>
+                                <button type="button" onclick="deselectAllDevices()" class="text-xs text-gray-600 hover:text-gray-800">反选</button>
+                            </div>
+                        </div>
+                        <div id="task-devices" class="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                            <!-- 由 JS 动态生成 checkbox -->
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">任务备注</label>
+                        <textarea id="task-remark" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" rows="2" placeholder="请输入任务备注..."></textarea>
+                    </div>
+                    <div class="task-modal-actions flex justify-end space-x-2">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm">取消</button>
+                        <button id="task-save-btn" type="submit" class="btn-primary text-white px-4 py-2 rounded-lg text-sm">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 中止任务弹窗 -->
+        <div id="cancel-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+                        <i class="fa fa-alert-triangle text-3xl text-amber-600"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-gray-800 mb-2">确认中止任务</h2>
+                    <p class="text-sm text-gray-500">此操作将立即停止正在执行的任务，并生成当前执行报告。</p>
+                    <p class="text-xs text-gray-400 mt-2">任务中止后无法恢复，确定继续吗？</p>
+                </div>
+                <input type="hidden" id="cancel-task-id">
+                <div class="flex justify-center space-x-4">
+                    <button onclick="closeCancelModal()" class="px-6 py-2.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm font-medium">取消</button>
+                    <button onclick="confirmCancelTask()" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:from-amber-600 hover:to-orange-600 text-sm font-medium transition-all">
+                        <i class="fa fa-stop mr-1.5"></i>确认中止
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 重试任务弹窗 -->
+        <div id="rerun-modal" class="modal-overlay">
+            <div class="modal-content task-modal-content" style="max-width: 600px;">
+                <div class="task-modal-header flex items-center justify-between">
+                    <h2 id="rerun-modal-title" class="text-lg font-bold text-gray-800">重新执行任务</h2>
+                    <button onclick="closeRerunModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+
+                <form id="rerun-form" onsubmit="submitRerunTask(event)">
+                    <input type="hidden" id="rerun-task-id">
+                    
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">任务名称 <span class="text-gray-400 font-normal">（非必填）</span></label>
+                        <input type="text" id="rerun-name" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="自动生成：项目/脚本名称">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">所属项目</label>
+                        <select id="rerun-project" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" onchange="onRerunSystemChange()">
+                            <option value="">不关联项目</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">目标系统</label>
+                        <div class="flex gap-3">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="rerun-system" value="Android" checked onclick="onRerunSystemChange()" class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                                <span class="ml-2 text-sm text-gray-700">Android</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="rerun-system" value="iOS" onclick="onRerunSystemChange()" class="w-4 h-4 text-orange-600 border-gray-300 focus:ring-orange-500">
+                                <span class="ml-2 text-sm text-gray-700">iOS</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="rerun-system" value="HarmonyOS" onclick="onRerunSystemChange()" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">HarmonyOS</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-xs font-semibold text-gray-700">脚本（用例）<span id="rerun-selected-scripts-count" class="text-blue-500 text-xs ml-1"></span></label>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="selectAllRerunScripts()" class="text-xs text-blue-600 hover:text-blue-800">全选</button>
+                                <button type="button" onclick="deselectAllRerunScripts()" class="text-xs text-gray-600 hover:text-gray-800">反选</button>
+                            </div>
+                        </div>
+                        <div id="rerun-scripts" class="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                            <!-- 由 JS 动态生成 checkbox -->
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">测试类型</label>
+                        <div class="flex gap-4">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="rerun-test-type" value="normal" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">普通测试</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="rerun-test-type" value="ui-compatibility" checked class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                                <span class="ml-2 text-sm text-gray-700">UI兼容性测试</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-xs font-semibold text-gray-700">设备 <span id="rerun-selected-devices-count" class="text-blue-500 text-xs ml-1"></span></label>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="selectAllRerunDevices()" class="text-xs text-blue-600 hover:text-blue-800">全选</button>
+                                <button type="button" onclick="deselectAllRerunDevices()" class="text-xs text-gray-600 hover:text-gray-800">反选</button>
+                            </div>
+                        </div>
+                        <div id="rerun-devices" class="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                            <!-- 由 JS 动态生成 checkbox -->
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">任务备注</label>
+                        <textarea id="rerun-remark" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" rows="2" placeholder="请输入任务备注..."></textarea>
+                    </div>
+                    
+                    <div class="task-modal-actions flex justify-end space-x-2">
+                        <button type="button" onclick="closeRerunModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm">取消</button>
+                        <button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg text-sm">确定</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+    </div>
+    
+    <script>
+        let scripts = [];
+        let devices = [];
+        let projects = [];
+        let allTasks = [];
+        var PAGE_SIZE = 10;
+        let currentPage = 1;
+        let totalItems = 0;
+
+        function getSelectedSystem() {
+            const selected = document.querySelector('input[name="task-system"]:checked');
+            return selected ? selected.value : 'Android';
+        }
+
+        function getDeviceDisplayName(device) {
+            if (!device) return '未知设备';
+            const name = device.device_display_name || [device.brand, device.model].filter(Boolean).join(' ');
+            return name && name.trim() ? name : '未知设备';
+        }
+
+        function getTaskDeviceDisplay(task) {
+            if (task.device_display_name && task.device_display_name.trim()) {
+                return task.device_display_name;
+            }
+            const ids = task.device_id ? task.device_id.split(',').map(d => d.trim()).filter(Boolean) : [];
+            if (ids.length === 0) return '-';
+            return ids.map(id => getDeviceDisplayName(devices.find(device => String(device.id) === String(id)))).join(', ');
+        }
+        
+        async function loadDevices() {
+            try {
+                const system_os = getSelectedSystem();
+                const url = new URL('/api/devices', window.location.origin);
+                url.searchParams.set('system_os', system_os);
+                
+                const response = await fetch(url.toString());
+                const data = await response.json();
+                devices = data.devices || [];
+                renderDeviceList(devices);
+                return;
+
+                const container = document.getElementById('task-devices');
+                container.innerHTML = '';
+
+                if (devices.length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-xs text-center py-2">未发现设备</div>';
+                    return;
+                }
+
+                devices.forEach(device => {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-center py-1.5 px-2 rounded hover:bg-gray-50 cursor-pointer text-sm';
+                    label.innerHTML = `
+                        <input type="checkbox" class="device-checkbox mr-2 rounded border-gray-300" value="${device.id}">
+                        <span class="text-gray-700">${getDeviceDisplayName(device)}</span>
+                    `;
+                    container.appendChild(label);
+                });
+                
+                // 为设备checkbox添加change事件监听
+                document.querySelectorAll('.device-checkbox').forEach(cb => {
+                    cb.addEventListener('change', () => { updateSelectedCounts(); updateTaskSaveButton(); });
+                });
+                updateSelectedCounts();
+            } catch (error) {
+                console.error('Failed to load devices:', error);
+            }
+        }
+
+        async function loadScripts() {
+            try {
+                const system_os = getSelectedSystem();
+                const modalProject = document.getElementById('task-project')?.value || '';
+                const project_id = modalProject;
+                const url = new URL('/api/tasks/init', window.location.origin);
+                url.searchParams.set('system_os', system_os);
+                if (project_id) url.searchParams.set('project_id', project_id);
+                
+                const response = await fetch(url.toString());
+                const data = await response.json();
+                scripts = data.scripts || [];
+                renderScriptList(scripts);
+                return;
+
+                const container = document.getElementById('task-scripts');
+                if (!container) {
+                    console.error('task-scripts container not found');
+                    return;
+                }
+                container.innerHTML = '';
+
+                if (scripts.length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-xs text-center py-2">未发现脚本</div>';
+                    return;
+                }
+
+                scripts.forEach(script => {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-center py-1.5 px-2 rounded hover:bg-gray-50 cursor-pointer text-sm';
+                    label.innerHTML = `
+                        <input type="checkbox" class="script-checkbox mr-2 rounded border-gray-300" value="${script.id}" data-name="${script.name}">
+                        <span class="text-gray-700">${script.name}</span>
+                        <span class="text-gray-400 text-xs ml-1">(${script.source === 'local' ? '本地' : 'Agent'})</span>
+                    `;
+                    container.appendChild(label);
+                });
+                
+                // 为脚本checkbox添加change事件监听
+                document.querySelectorAll('.script-checkbox').forEach(cb => {
+                    cb.addEventListener('change', () => { updateSelectedCounts(); updateTaskSaveButton(); });
+                });
+                updateSelectedCounts();
+            } catch (error) {
+                console.error('Failed to load scripts:', error);
+            }
+        }
+
+        async function loadProjects() {
+            try {
+                const response = await fetch('/api/projects');
+                const data = await response.json();
+                projects = data.items || [];
+            } catch (error) {
+                console.error('Failed to load projects:', error);
+            }
+        }
+
+        async function loadDimensions() {
+            try {
+                const response = await fetch('/api/compat/dimensions');
+                const data = await response.json();
+                const dimensions = data.dimensions || [];
+
+                const container = document.getElementById('compatibility-dimensions');
+                container.innerHTML = '';
+
+                if (dimensions.length === 0) {
+                    container.innerHTML = '<div class="text-gray-400 text-xs text-center py-2">未发现维度</div>';
+                    return;
+                }
+
+                const excludeDimensions = ['interaction', 'performance', 'device'];
+                const validDimensions = dimensions.filter(dim => !excludeDimensions.includes(dim.id));
+
+                const dimensionNameMap = {
+                    '布局适配': '布局',
+                    '文字显示': '文字',
+                    '图片显示': '图片',
+                    '设备适配': '设备',
+                    '主题适配': '主题',
+                    '交互反馈': '交互',
+                    '页面状态': '页面',
+                    '性能体验': '性能',
+                    '设备异常': '异常'
+                };
+
+                validDimensions.forEach(dim => {
+                    const label = document.createElement('label');
+                    label.className = 'dimension-item';
+                    const displayName = dimensionNameMap[dim.description] || dim.name;
+                    label.innerHTML = `
+                        <input type="checkbox" name="compatibility-dimensions" value="${dim.id}" checked>
+                        <span>${displayName}</span>
+                    `;
+                    container.appendChild(label);
+                });
+                updateSelectedCounts();
+            } catch (error) {
+                console.error('Failed to load dimensions:', error);
+            }
+        }
+
+        async function loadProjectToModal() {
+            try {
+                const response = await fetch('/api/projects');
+                const data = await response.json();
+                const items = data.items || [];
+                const select = document.getElementById('task-project');
+                select.innerHTML = '<option value="">不关联项目</option>';
+                items.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name;
+                    select.appendChild(opt);
+                });
+            } catch (error) {
+                console.error('Failed to load projects:', error);
+            }
+        }
+
+        /*
+        async function loadTasksOld(page = 1) {
+            currentPage = page;
+            const status = document.getElementById('status-filter').value;
+
+            let url = '/api/tasks';
+            if (status) url += `?status=${status}`;
+
+            try {
+                const response = await fetch(url);
+                allTasks = await response.json();
+                totalItems = allTasks.length;
+                
+                const start = (currentPage - 1) * PAGE_SIZE;
+                const pageData = allTasks.slice(start, start + PAGE_SIZE);
+
+                const tbody = document.getElementById('tasks-table');
+                tbody.innerHTML = '';
+
+                if (pageData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400 text-xs"><i class="fa fa-tasks text-lg mb-1 block"></i>暂无任务</td></tr>';
+                    updatePagination();
+                    return;
+                }
+
+                pageData.forEach(task => {
+                    const script = scripts.find(s => s.id === task.script_id);
+                    const project = projects.find(p => p.id === task.project_id);
+                    // 优先显示任务名称，其次显示项目/脚本名称，最后显示备注
+                    // 判断测试类型
+                    const isParentTask = task.task_role === 'parent';
+                    const testType = isParentTask ? '兼容性测试' : '普通测试';
+                    
+                    // 任务名称：优先使用创建时的名称，否则使用测试类型+时间戳
+                    let taskName = task.name;
+                    let taskName = task.name;
+                    if (!taskName || taskName.trim() === '') {
+                        const timestamp = task.created_at ? new Date(task.created_at).getTime().toString().slice(-8) : '';
+                        taskName = `${testType}_${timestamp}`;
+                    }
+                    
+                    const maxDisplayLength = 50; // 最大显示长度
+                    const fullDeviceText = getTaskDeviceDisplay(task);
+                    const fullDeviceText = getTaskDeviceDisplay(task);
+                    let deviceDisplay = fullDeviceText;
+                    let showDeviceExpand = false;
+                    
+                    // 如果设备列表太长，截断并显示展开按钮
+                    if (fullDeviceText.length > maxDisplayLength) {
+                        deviceDisplay = fullDeviceText.substring(0, maxDisplayLength) + '...';
+                        showDeviceExpand = true;
+                    } else if (!deviceDisplay) {
+                        deviceDisplay = '-';
+                    }
+                    
+                    const hasChildren = task.children && task.children.length > 0;
+                    
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-50 hover:bg-gray-50 transition-colors';
+                    row.setAttribute('data-task-id', task.id);
+                    row.innerHTML = `
+                        <td class="py-3 px-2"><input type="checkbox" class="task-checkbox" value="${task.id}" onchange="updateSelectAll()"></td>
+                        <td class="py-3 px-3 text-sm truncate max-w-[150px]">
+                            <div class="flex items-center">
+                                ${isParentTask && hasChildren ? `<button onclick="toggleChildExpand(${task.id})" class="text-gray-400 hover:text-blue-600 mr-1 text-xs" title="展开子任务"><i class="fa fa-caret-right" id="expand-icon-${task.id}"></i></button>` : ''}
+                                <span class="${isParentTask ? 'text-blue-600 hover:text-blue-800 cursor-pointer font-medium' : 'text-gray-800'}" ${isParentTask ? `onclick="toggleChildExpand(${task.id})"` : ''}>${taskName}</span>
+                            </div>
+                        </td>
+                        <td class="py-3 px-3">
+                            <span class="text-xs px-2 py-1 rounded-full ${testType === '兼容性测试' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">${testType}</span>
+                        </td>
+                        <td class="py-3 px-3 text-xs text-gray-500">
+                            <span class="${showDeviceExpand ? 'truncate' : ''}" title="${fullDeviceText || '-'}">${deviceDisplay}</span>
+                            ${showDeviceExpand ? ` <button onclick="toggleDeviceExpand(${task.id})" class="text-blue-600 hover:text-blue-800 text-xs ml-1"><i class="fa fa-caret-right"></i></button>` : ''}
+                        </td>
+                        <td class="py-3 px-3 task-status"><span class="status-badge status-${task.status}">${getStatusText(task.status)}</span></td>
+                        <td class="py-3 px-3 text-xs text-gray-500 truncate max-w-[120px]">${task.remark || '-'}</td>
+                        <td class="py-3 px-3 text-xs text-gray-500">${formatDateTime(task.created_at)}</td>
+                        <td class="py-3 px-3">
+                            ${task.status === 'pending' ? `<button onclick="runTask(${task.id})" class="btn-run text-xs p-1.5 rounded hover:bg-green-50 text-green-600 hover:text-green-800 transition-colors" title="运行"><i class="fa fa-play"></i></button>` : ''}
+                            ${task.status === 'running' ? `<button onclick="openCancelModal(${task.id})" class="text-xs p-1.5 rounded hover:bg-amber-50 text-amber-600 hover:text-amber-800 transition-colors" title="中止"><i class="fa fa-stop"></i></button>` : ''}
+                            <button onclick="viewTask(${task.id})" class="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1.5 rounded transition-colors text-xs" title="查看"><i class="fa fa-eye"></i></button>
+                            ${task.status !== 'running' ? `<button onclick="deleteTask(${task.id})" class="text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded transition-colors text-xs" title="删除"><i class="fa fa-trash"></i></button>` : ''}
+                            ${task.status === 'finished' || task.status === 'failed' || task.status === 'partial_failed' ? `<button onclick="rerunTask(${task.id})" class="text-amber-600 hover:text-amber-800 hover:bg-amber-50 p-1.5 rounded transition-colors text-xs" title="重新执行"><i class="fa fa-repeat"></i></button>` : ''}
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                    
+                    // 如果是父任务且有子任务，添加子任务展开行
+                    if (isParentTask && hasChildren) {
+                        const childExpandRow = document.createElement('tr');
+                        childExpandRow.className = 'hidden bg-gray-50';
+                        childExpandRow.setAttribute('data-child-expand-row', task.id);
+                        
+                        let childrenHtml = '';
+                        task.children.forEach((child, index) => {
+                            const childDeviceName = child.device_display_name || getDeviceDisplayName(devices.find(d => String(d.id) === String(child.device_id)));
+                            childrenHtml += `
+                                <div class="flex items-center justify-between py-2 px-4 border-b border-gray-100 last:border-b-0">
+                                    <div class="flex items-center">
+                                        <span class="text-xs text-gray-400 mr-2">${index + 1}.</span>
+                                        <span class="text-sm text-gray-700">${childDeviceName}</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <span class="status-badge status-${child.status} text-xs mr-3">${getStatusText(child.status)}</span>
+                                        <button onclick="viewTask(${child.id})" class="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded text-xs" title="查看详情"><i class="fa fa-eye"></i></button>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        childExpandRow.innerHTML = `
+                            <td colspan="8" class="p-0">
+                                <div class="ml-4 border-l-2 border-blue-200">
+                                    ${childrenHtml}
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(childExpandRow);
+                    }
+                    
+                    // 如果设备列表过长，添加展开行
+                    if (showDeviceExpand) {
+                        const expandRow = document.createElement('tr');
+                        expandRow.className = 'hidden bg-gray-50';
+                        expandRow.setAttribute('data-expand-row', task.id);
+                        expandRow.innerHTML = `
+                            <td colspan="8" class="py-3 px-3">
+                                <div class="mt-2 ml-4 space-y-2" id="device-details-${task.id}">
+                                    <div class="text-xs text-gray-500">加载中...</div>
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(expandRow);
+                    }
+                });
+                updatePagination();
+                updateBatchDeleteBtn(); // 重渲染后同步批量删除按钮显隐
+            } catch (error) {
+                console.error('Failed to load tasks:', error);
+            }
+        }
+
+        */
+
+        async function loadTasks(page = 1) {
+            currentPage = page;
+            const status = document.getElementById('status-filter').value;
+
+            let url = '/api/tasks';
+            if (status) url += `?status=${encodeURIComponent(status)}`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                allTasks = await response.json();
+                totalItems = allTasks.length;
+                renderTasks();
+            } catch (error) {
+                console.error('Failed to load tasks:', error);
+                const tbody = document.getElementById('tasks-table');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-500 text-xs">任务加载失败</td></tr>';
+                }
+            }
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+            const container = document.getElementById('pagination-container');
+            if (container) {
+                container.innerHTML = `
+                    <span class="text-xs text-gray-600">共 ${totalItems} 条</span>
+                    <span class="text-xs text-gray-400 mx-1">|</span>
+                    <span class="text-xs text-gray-600">第 ${currentPage}/${totalPages || 1} 页</span>
+                    <select onchange="changePageSize(this.value)" 
+                            class="ml-2 px-2 py-1 rounded border border-gray-200 text-gray-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="10" ${PAGE_SIZE === 10 ? 'selected' : ''}>10条/页</option>
+                        <option value="20" ${PAGE_SIZE === 20 ? 'selected' : ''}>20条/页</option>
+                        <option value="50" ${PAGE_SIZE === 50 ? 'selected' : ''}>50条/页</option>
+                        <option value="100" ${PAGE_SIZE === 100 ? 'selected' : ''}>100条/页</option>
+                    </select>
+                    <button onclick="loadTasks(${currentPage - 1})"
+                            class="ml-2 px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            ${currentPage <= 1 ? 'disabled' : ''}>
+                        <i class="fa fa-chevron-left mr-0.5"></i>上一页
+                    </button>
+                    <button onclick="loadTasks(${currentPage + 1})"
+                            class="px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            ${currentPage >= totalPages ? 'disabled' : ''}>
+                        下一页<i class="fa fa-chevron-right ml-0.5"></i>
+                    </button>
+                `;
+            }
+        }
+        
+        function changePageSize(size) {
+            PAGE_SIZE = parseInt(size);
+
+            currentPage = 1;
+            loadTasks(1);
+        }
+
+        function getStatusText(status) {
+            const statusMap = { 'pending': '待执行', 'running': '运行中', 'finished': '已完成', 'failed': '失败', 'cancelled': '已取消' };
+            return statusMap[status] || status;
+        }
+
+        // 按状态展示执行结果，避免 JSON 全量打印
+        function formatTaskResult(task) {
+            if (!task || !task.result) return '';
+            let parsed = null;
+            try { parsed = JSON.parse(task.result); } catch (e) { parsed = null; }
+
+            // finished：仅显示「已完成」，不暴露内部字段
+            if (task.status === 'finished') return '已完成';
+
+            // partial_failed：优先展示断言摘要
+            if (task.status === 'partial_failed') {
+                if (parsed && parsed.assertion_summary) {
+                    const s = parsed.assertion_summary;
+                    return `断言：${s.passed || 0} 通过 / ${s.failed || 0} 失败`;
+                }
+                if (parsed && parsed.error) return String(parsed.error);
+                return '部分失败';
+            }
+
+            // failed：优先展示错误信息
+            if (task.status === 'failed') {
+                if (parsed && parsed.error) return String(parsed.error);
+                if (parsed && typeof parsed.result === 'string' && parsed.result) return parsed.result;
+                return '执行失败';
+            }
+
+            // 其他状态：有 error 字段才展示
+            if (parsed && parsed.error) return String(parsed.error);
+            return '';
+        }
+
+        function openCreateModal() {
+            const modalTitleEl = document.getElementById('modal-title');
+            if (!modalTitleEl) return;
+            modalTitleEl.textContent = '创建任务';
+            const taskIdEl = document.getElementById('task-id');
+            if (taskIdEl) taskIdEl.value = '';
+            const taskNameEl = document.getElementById('task-name');
+            if (taskNameEl) taskNameEl.value = '';
+            const taskRemarkEl = document.getElementById('task-remark');
+            if (taskRemarkEl) taskRemarkEl.value = '';
+            const taskProjectEl = document.getElementById('task-project');
+            if (taskProjectEl) taskProjectEl.value = '';
+            // 设置默认选中 Android
+            const systemRadio = document.querySelector('input[name="task-system"][value="Android"]');
+            if (systemRadio) systemRadio.checked = true;
+            document.querySelectorAll('.device-checkbox').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.script-checkbox').forEach(cb => cb.checked = false);
+            document.querySelectorAll('input[name="compatibility-dimensions"]').forEach(cb => cb.checked = false);
+            loadScripts();
+            loadDevices();
+            loadDimensions();
+            updateSelectedCounts();
+            updateDimensionVisibility();
+            document.getElementById('modal').classList.add('show');
+        }
+
+        function onSystemChange() {
+            loadScripts();
+            loadDevices();
+        }
+
+        function onFilterChange() {
+            loadScripts();
+            loadDevices();
+        }
+
+        
+
+        function toggleScriptsGroup() {
+            const container = document.getElementById('task-scripts');
+            const icon = document.getElementById('scripts-toggle-icon');
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            } else {
+                container.style.display = 'none';
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-right');
+            }
+        }
+
+        function toggleDevicesGroup() {
+            const container = document.getElementById('task-devices');
+            const icon = document.getElementById('devices-toggle-icon');
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            } else {
+                container.style.display = 'none';
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-right');
+            }
+        }
+
+        function selectAllScripts() {
+            document.querySelectorAll('.script-checkbox').forEach(cb => cb.checked = true);
+            updateSelectedCounts();
+            updateTaskSaveButton();
+        }
+
+        function deselectAllScripts() {
+            document.querySelectorAll('.script-checkbox').forEach(cb => cb.checked = false);
+            updateSelectedCounts();
+            updateTaskSaveButton();
+        }
+
+        function selectAllDevices() {
+            document.querySelectorAll('.device-checkbox').forEach(cb => cb.checked = true);
+            updateSelectedCounts();
+            updateTaskSaveButton();
+        }
+
+        function deselectAllDevices() {
+            document.querySelectorAll('.device-checkbox').forEach(cb => cb.checked = false);
+            updateSelectedCounts();
+            updateTaskSaveButton();
+        }
+
+        function updateDimensionVisibility() {
+            const testType = document.querySelector('input[name="test-type"]:checked').value;
+            const dimensionSection = document.getElementById('compatibility-dimensions-section');
+            if (testType === 'ui-compatibility') {
+                dimensionSection.style.display = 'block';
+            } else {
+                dimensionSection.style.display = 'none';
+            }
+        }
+
+        function updateSelectedCounts() {
+            const selectedScripts = document.querySelectorAll('.script-checkbox:checked').length;
+            const totalScripts = document.querySelectorAll('.script-checkbox').length;
+            const selectedDevices = document.querySelectorAll('.device-checkbox:checked').length;
+            const totalDevices = document.querySelectorAll('.device-checkbox').length;
+
+            document.getElementById('selected-scripts-count').textContent = selectedScripts > 0 ? `(${selectedScripts}/${totalScripts})` : '';
+            document.getElementById('selected-devices-count').textContent = selectedDevices > 0 ? `(${selectedDevices}/${totalDevices})` : '';
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('show');
+        }
+
+        function updateTaskSaveButton() {
+            const btn = document.getElementById('task-save-btn');
+            if (!btn) return;
+            const projectId = document.getElementById('task-project').value;
+            const hasScript = document.querySelectorAll('.script-checkbox:checked').length > 0;
+            const hasDevice = document.querySelectorAll('.device-checkbox:checked').length > 0;
+            const enabled = projectId && hasScript && hasDevice;
+            btn.disabled = !enabled;
+            if (enabled) {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        async function submitTask(event) {
+            event.preventDefault();
+
+            // 获取保存按钮并设置 loading 状态
+            const saveBtn = document.getElementById('task-save-btn');
+            const originalText = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1.5"></i>保存中...';
+
+            const deviceIds = Array.from(document.querySelectorAll('.device-checkbox:checked')).map(cb => cb.value);
+            const scriptIds = Array.from(document.querySelectorAll('.script-checkbox:checked')).map(cb => parseInt(cb.value));
+            const remark = document.getElementById('task-remark').value;
+            const projectId = document.getElementById('task-project').value;
+            
+            // 获取测试类型和UI兼容性维度
+            const testType = document.querySelector('input[name="test-type"]:checked').value;
+            const dimensions = Array.from(document.querySelectorAll('input[name="compatibility-dimensions"]:checked')).map(cb => cb.value);
+
+            // 验证：至少选择一个脚本或设备
+            if (scriptIds.length === 0 && deviceIds.length === 0) {
+                UIUtils.warning('提示', '请至少选择一个脚本或设备');
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+                return;
+            }
+
+            try {
+                const systemOs = getSelectedSystem();
+                const resp = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_ids: deviceIds,
+                        script_ids: scriptIds,
+                        remark: remark || null,
+                        name: null,
+                        project_id: projectId ? parseInt(projectId) : null,
+                        system_os: systemOs,
+                        test_type: testType,
+                        compatibility_dimensions: testType === 'ui-compatibility' ? dimensions : [],
+                    })
+                });
+                
+                if (!resp.ok) {
+                    const errorResult = await resp.json().catch(() => ({ detail: '创建失败' }));
+                    UIUtils.error('创建失败', errorResult.detail || '未知错误');
+                    return;
+                }
+                
+                const result = await resp.json();
+                closeModal();
+                
+                // 立即刷新列表，让新任务显示出来
+                loadTasks(1);
+                
+                if (result.test_type === 'ui-compatibility' && result.parent_task_id) {
+                    // 异步触发执行，不阻塞 UI
+                    fetch(`/api/compat/tasks/${result.parent_task_id}/execute`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                    }).then(r => r.json()).then(execResult => {
+                        if (!execResult.success) {
+                            console.warn('兼容性测试执行触发失败:', execResult);
+                        }
+                    }).catch(err => {
+                        console.error('兼容性测试执行触发异常:', err);
+                    });
+                    UIUtils.success('创建成功', '任务已创建，正在执行兼容性测试...');
+                } else if (result.task_id || result.task_ids) {
+                    UIUtils.success('创建成功', '任务已创建并开始执行');
+                } else {
+                    UIUtils.success('创建成功', '任务已创建');
+                }
+            } catch (error) {
+                console.error('Failed to create task:', error);
+                UIUtils.error('创建失败', error.message);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+            }
+        }
+
+        // 展开/收起设备详情
+        function toggleDeviceExpand(taskId) {
+            const expandRow = document.querySelector(`tr[data-expand-row="${taskId}"]`);
+            const btn = document.querySelector(`button[onclick="toggleDeviceExpand(${taskId})"]`);
+            
+            if (!expandRow || !btn) return;
+            
+            if (expandRow.classList.contains('hidden')) {
+                // 展开
+                expandRow.classList.remove('hidden');
+                btn.innerHTML = '<i class="fa fa-caret-down mr-1"></i>收起';
+                // 加载设备详情
+                loadDeviceDetails(taskId);
+            } else {
+                // 收起
+                expandRow.classList.add('hidden');
+                btn.innerHTML = '<i class="fa fa-caret-right mr-1"></i>展开';
+            }
+        }
+        
+        // 展开/收起子任务
+        function toggleChildExpand(taskId) {
+            const expandRow = document.querySelector(`tr[data-child-expand-row="${taskId}"]`);
+            const icon = document.getElementById(`expand-icon-${taskId}`);
+            
+            if (!expandRow) return;
+            
+            if (expandRow.classList.contains('hidden')) {
+                // 展开
+                expandRow.classList.remove('hidden');
+                if (icon) {
+                    icon.classList.remove('fa-caret-right');
+                    icon.classList.add('fa-caret-down');
+                }
+            } else {
+                // 收起
+                expandRow.classList.add('hidden');
+                if (icon) {
+                    icon.classList.remove('fa-caret-down');
+                    icon.classList.add('fa-caret-right');
+                }
+            }
+        }
+        
+        // 加载设备详情
+        async function loadDeviceDetails(taskId) {
+            const container = document.getElementById(`device-details-${taskId}`);
+            if (!container) return;
+            
+            try {
+                const resp = await fetch(`/api/tasks/${taskId}`);
+                const task = await resp.json();
+                
+                if (!task.device_id || !task.device_id.includes(',')) {
+                    container.innerHTML = '<div class="text-xs text-gray-500">无多设备数据</div>';
+                    return;
+                }
+                
+                const deviceIds = task.device_id.split(',').map(d => d.trim());
+                const result = task.result ? JSON.parse(task.result) : null;
+                const deviceResults = result?.device_results || {};
+                
+                let html = '<div class="grid grid-cols-2 gap-3">';
+                deviceIds.forEach(deviceId => {
+                    const deviceResult = deviceResults[deviceId];
+                    const status = deviceResult?.success ? 'success' : (deviceResult ? 'failed' : 'pending');
+                    const statusText = deviceResult?.success ? '成功' : (deviceResult ? '失败' : '未执行');
+                    
+                    html += `
+                        <div class="flex justify-between items-center bg-white rounded-lg p-3 border border-gray-200">
+                            <div class="flex items-center space-x-2">
+                                <i class="fa fa-mobile text-lg text-gray-600"></i>
+                                <span class="font-medium text-sm text-gray-800">${deviceId}</span>
+                            </div>
+                            <span class="status-badge status-${status} text-xs">${statusText}</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Failed to load device details:', error);
+                container.innerHTML = '<div class="text-xs text-red-600">加载失败</div>';
+            }
+        }
+
+        async function runTask(id) {
+            const taskRow = document.querySelector(`tr[data-task-id="${id}"]`);
+            const runBtn = taskRow?.querySelector('.btn-run');
+            
+            // 设置loading状态
+            if (runBtn) {
+                runBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+                runBtn.style.pointerEvents = 'none';
+            }
+            
+            // 立即更新状态为执行中
+            const statusCell = taskRow?.querySelector('.task-status');
+            if (statusCell) {
+                statusCell.innerHTML = '<span class="status-badge status-running">执行中</span>';
+            }
+            
+            try {
+                const response = await fetch(`/api/tasks/${id}/run`, { method: 'POST' });
+                if (!response.ok) {
+                    const err = await response.json();
+                    UIUtils.error('执行失败', err.detail || '未知错误');
+                }
+            } catch (error) {
+                console.error('Failed to run task:', error);
+                UIUtils.error('执行失败', error.message);
+            } finally {
+                // 刷新列表显示最新状态
+                loadTasks(currentPage);
+            }
+        }
+
+        function openCancelModal(taskId) {
+            document.getElementById('cancel-task-id').value = taskId;
+            document.getElementById('cancel-modal').classList.add('show');
+        }
+
+        function closeCancelModal() {
+            document.getElementById('cancel-modal').classList.remove('show');
+            document.getElementById('cancel-task-id').value = '';
+        }
+
+        async function confirmCancelTask() {
+            const taskId = parseInt(document.getElementById('cancel-task-id').value);
+            if (!taskId) {
+                closeCancelModal();
+                return;
+            }
+            
+            // 禁用按钮防止重复点击
+            const confirmBtn = document.querySelector('#cancel-modal button:last-child');
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1.5"></i>中止中...';
+            
+            try {
+                const response = await fetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' });
+                const result = await response.json();
+                
+                closeCancelModal();
+                
+                if (result.success) {
+                    UIUtils.success('任务已中止', result.message || '任务已成功中止');
+                } else {
+                    UIUtils.error('中止失败', result.message || '无法中止任务，请稍后重试');
+                }
+                loadTasks(currentPage);
+            } catch (error) {
+                closeCancelModal();
+                console.error('Failed to cancel task:', error);
+                UIUtils.error('中止失败', '中止任务时发生错误');
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fa fa-stop mr-1.5"></i>确认中止';
+            }
+        }
+
+        async function viewTask(id) {
+            try {
+                const response = await fetch(`/api/tasks/${id}`);
+                const task = await response.json();
+
+                const overlay = document.createElement('div');
+                overlay.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4';
+                overlay.onclick = function(e) {
+                    if (e.target === this) {
+                        this.remove();
+                        loadTasks(currentPage);
+                    }
+                };
+                overlay.innerHTML = `
+                    <div class="bg-white rounded-2xl p-5 max-w-lg w-full max-h-[80vh] overflow-auto">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-bold text-gray-800">任务详情</h3>
+                            <button onclick="this.closest('.fixed').remove(); loadTasks(currentPage)" class="text-gray-400 hover:text-gray-600">
+                                <i class="fa fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">任务备注</span>
+                                <span class="font-medium text-gray-800">${task.remark || '-'}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">设备</span>
+                                <span class="font-medium text-gray-800">${getTaskDeviceDisplay(task).replaceAll(', ', '<br>')}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">状态</span>
+                                <span class="status-badge status-${task.status}">${getStatusText(task.status)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">创建时间</span>
+                                <span class="text-gray-800">${formatDateTime(task.created_at)}</span>
+                            </div>
+                            ${(() => {
+                                const resultText = formatTaskResult(task);
+                                return resultText ? `
+                            <div>
+                                <span class="text-gray-500 block mb-1">执行结果</span>
+                                <div class="bg-gray-50 p-3 rounded-lg text-xs ${task.status === 'failed' ? 'text-red-600' : 'text-gray-700'}">${resultText}</div>
+                            </div>` : '';
+                            })()}
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+            } catch (error) {
+                console.error('Failed to load task:', error);
+            }
+        }
+
+        async function deleteTask(id) {
+            UIUtils.confirm({
+                title: '删除任务',
+                message: '确定要删除这个任务吗？',
+                type: 'danger',
+                okText: '删除',
+                onConfirm: async () => {
+                    try {
+                        const response = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+                        const result = await response.json();
+                        
+                        if (response.ok && result.success) {
+                            const message = result.soft_deleted ? '任务已删除，测试报告仍可在报告页查看' : '任务已成功删除';
+                            UIUtils.success('删除成功', message);
+                            loadTasks(currentPage);
+                        } else {
+                            UIUtils.error('删除失败', result.detail || '无法删除该任务');
+                        }
+                    } catch (error) {
+                        console.error('Failed to delete task:', error);
+                        UIUtils.error('删除失败', error.message);
+                    }
+                }
+            });
+        }
+
+        function getSelectedRerunSystem() {
+            const selected = document.querySelector('input[name="rerun-system"]:checked');
+            return selected ? selected.value : 'Android';
+        }
+        
+        async function loadRerunScripts() {
+            try {
+                const system_os = getSelectedRerunSystem();
+                const project_id = document.getElementById('rerun-project')?.value || '';
+                const url = new URL('/api/tasks/init', window.location.origin);
+                url.searchParams.set('system_os', system_os);
+                if (project_id) url.searchParams.set('project_id', project_id);
+                
+                const response = await fetch(url.toString());
+                const data = await response.json();
+                const rerunScripts = data.scripts || [];
+                
+                const scriptsContainer = document.getElementById('rerun-scripts');
+                scriptsContainer.innerHTML = '';
+                
+                if (rerunScripts.length === 0) {
+                    scriptsContainer.innerHTML = '<div class="text-gray-400 text-xs text-center py-2">未发现脚本</div>';
+                    return;
+                }
+                
+                rerunScripts.forEach(script => {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-center py-1.5 px-2 rounded hover:bg-gray-50 cursor-pointer text-sm';
+                    label.innerHTML = `
+                        <input type="checkbox" class="rerun-script-checkbox mr-2 rounded border-gray-300" value="${script.id}" data-name="${script.name}">
+                        <span class="text-gray-700">${script.name}</span>
+                        <span class="text-gray-400 text-xs ml-1">(${script.source === 'local' ? '本地' : 'Agent'})</span>
+                    `;
+                    scriptsContainer.appendChild(label);
+                });
+            } catch (error) {
+                console.error('Failed to load rerun scripts:', error);
+            }
+        }
+        
+        async function loadRerunDevices() {
+            try {
+                const system_os = getSelectedRerunSystem();
+                const url = new URL('/api/devices', window.location.origin);
+                url.searchParams.set('system_os', system_os);
+                
+                const response = await fetch(url.toString());
+                const data = await response.json();
+                const rerunDevices = data.devices || [];
+                
+                const devicesContainer = document.getElementById('rerun-devices');
+                devicesContainer.innerHTML = '';
+                
+                if (rerunDevices.length === 0) {
+                    devicesContainer.innerHTML = '<div class="text-gray-400 text-xs text-center py-2">未发现设备</div>';
+                    return;
+                }
+                
+                rerunDevices.forEach(device => {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-center py-1.5 px-2 rounded hover:bg-gray-50 cursor-pointer text-sm';
+                    label.innerHTML = `
+                        <input type="checkbox" class="rerun-device-checkbox mr-2 rounded border-gray-300" value="${device.id}">
+                        <span class="text-gray-700">${getDeviceDisplayName(device)}</span>
+                    `;
+                    devicesContainer.appendChild(label);
+                });
+            } catch (error) {
+                console.error('Failed to load rerun devices:', error);
+            }
+        }
+        
+        function onRerunSystemChange() {
+            loadRerunScripts();
+            loadRerunDevices();
+        }
+        
+        function selectAllRerunScripts() {
+            document.querySelectorAll('.rerun-script-checkbox').forEach(cb => cb.checked = true);
+            updateRerunSelectedCounts();
+        }
+
+        function deselectAllRerunScripts() {
+            document.querySelectorAll('.rerun-script-checkbox').forEach(cb => cb.checked = false);
+            updateRerunSelectedCounts();
+        }
+
+        function selectAllRerunDevices() {
+            document.querySelectorAll('.rerun-device-checkbox').forEach(cb => cb.checked = true);
+            updateRerunSelectedCounts();
+        }
+
+        function deselectAllRerunDevices() {
+            document.querySelectorAll('.rerun-device-checkbox').forEach(cb => cb.checked = false);
+            updateRerunSelectedCounts();
+        }
+
+        function updateRerunSelectedCounts() {
+            const selectedScripts = document.querySelectorAll('.rerun-script-checkbox:checked').length;
+            const totalScripts = document.querySelectorAll('.rerun-script-checkbox').length;
+            const selectedDevices = document.querySelectorAll('.rerun-device-checkbox:checked').length;
+            const totalDevices = document.querySelectorAll('.rerun-device-checkbox').length;
+            
+            document.getElementById('rerun-selected-scripts-count').textContent = selectedScripts > 0 ? `(${selectedScripts}/${totalScripts})` : '';
+            document.getElementById('rerun-selected-devices-count').textContent = selectedDevices > 0 ? `(${selectedDevices}/${totalDevices})` : '';
+        }
+
+        async function openRerunModal(taskId) {
+            document.getElementById('rerun-task-id').value = taskId;
+            
+            // 获取原任务信息
+            let task = null;
+            try {
+                const resp = await fetch(`/api/tasks/${taskId}`);
+                task = await resp.json();
+            } catch (error) {
+                console.error('Failed to load task:', error);
+            }
+            
+            // 填充任务名称（可编辑）
+            document.getElementById('rerun-name').value = task?.name || '';
+            
+            // 填充项目列表（可选择）
+            const projectSelect = document.getElementById('rerun-project');
+            projectSelect.innerHTML = '<option value="">不关联项目</option>';
+            projects.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.id;
+                option.textContent = project.name;
+                if (project.id === task?.project_id) {
+                    option.selected = true;
+                }
+                projectSelect.appendChild(option);
+            });
+            
+            // 设置默认选中 Android
+            const rerunPlatform = task?.platform || task?.system_os || 'Android';
+            const rerunPlatformRadio = document.querySelector(`input[name="rerun-system"][value="${rerunPlatform}"]`);
+            if (rerunPlatformRadio) {
+                rerunPlatformRadio.checked = true;
+            } else {
+                document.querySelector('input[name="rerun-system"][value="Android"]').checked = true;
+            }
+            
+            // 加载脚本和设备（按系统过滤）
+            await loadRerunScripts();
+            await loadRerunDevices();
+            
+            // 如果有原任务的脚本，尝试选中
+            if (task?.script_id) {
+                const checkbox = document.querySelector(`.rerun-script-checkbox[value="${task.script_id}"]`);
+                if (checkbox) checkbox.checked = true;
+            }
+            
+            // 如果有原任务的设备，尝试选中
+            if (task?.device_id) {
+                const originalDeviceIds = task.device_id.split(',').map(d => d.trim());
+                originalDeviceIds.forEach(deviceId => {
+                    const checkbox = document.querySelector(`.rerun-device-checkbox[value="${deviceId}"]`);
+                    if (checkbox) checkbox.checked = true;
+                });
+            }
+            
+            // 更新选中计数
+            updateRerunSelectedCounts();
+            
+            // 填充备注（可编辑）
+            document.getElementById('rerun-remark').value = task?.remark || '';
+            
+            document.getElementById('rerun-modal').classList.add('show');
+        }
+
+        function closeRerunModal() {
+            document.getElementById('rerun-modal').classList.remove('show');
+        }
+
+        async function submitRerunTask(event) {
+            event.preventDefault();
+            
+            const taskId = document.getElementById('rerun-task-id').value;
+            const taskName = document.getElementById('rerun-name').value;
+            const projectId = document.getElementById('rerun-project').value;
+            const deviceIds = Array.from(document.querySelectorAll('.rerun-device-checkbox:checked')).map(cb => cb.value);
+            const scriptIds = Array.from(document.querySelectorAll('.rerun-script-checkbox:checked')).map(cb => parseInt(cb.value));
+            const remark = document.getElementById('rerun-remark').value;
+            const testType = document.querySelector('input[name="rerun-test-type"]:checked').value;
+            const platform = document.querySelector('input[name="rerun-system"]:checked')?.value || 'Android';
+            const dimensions = Array.from(document.querySelectorAll('input[name="compatibility-dimensions"]:checked')).map(cb => cb.value);
+            
+            if (deviceIds.length === 0) {
+                UIUtils.warning('提示', '请至少选择一个设备');
+                return;
+            }
+            
+            try {
+                const resp = await fetch(`/api/tasks/${taskId}/rerun`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        device_ids: deviceIds, 
+                        script_ids: scriptIds, 
+                        remark: remark,
+                        name: taskName || null,
+                        project_id: projectId ? parseInt(projectId) : null,
+                        test_type: testType,
+                        platform: platform,
+                        compatibility_dimensions: testType === 'ui-compatibility' ? dimensions : []
+                    })
+                });
+                const result = await resp.json();
+                closeRerunModal();
+                
+                // 立即刷新列表
+                loadTasks(1);
+                
+                if (result.task_id) {
+                    const msg = result.test_type === 'ui-compatibility'
+                        ? '兼容性测试任务已创建，正在执行...'
+                        : '已创建新任务，正在执行...';
+                    UIUtils.success('重新执行', msg);
+                }
+            } catch (error) {
+                console.error('Failed to rerun task:', error);
+                UIUtils.error('重新执行失败', error.message);
+            }
+        }
+
+        async function rerunTask(id) {
+            openRerunModal(id);
+        }
+
+        function toggleAllTasks() {
+            const checked = document.getElementById('select-all').checked;
+            document.querySelectorAll('.task-checkbox').forEach(cb => cb.checked = checked);
+            updateBatchDeleteBtn();
+        }
+
+        function updateSelectAll() {
+            const all = document.querySelectorAll('.task-checkbox');
+            const checked = document.querySelectorAll('.task-checkbox:checked');
+            document.getElementById('select-all').checked = all.length === checked.length && all.length > 0;
+            updateBatchDeleteBtn();
+        }
+
+        /** 批量删除按钮：仅在勾选了任务时才显示 */
+        function updateBatchDeleteBtn() {
+            const checked = document.querySelectorAll('.task-checkbox:checked');
+            const btn = document.getElementById('batch-delete-btn');
+            if (!btn) return;
+            btn.style.display = checked.length > 0 ? '' : 'none';
+        }
+
+        async function batchDeleteTasks() {
+            const ids = Array.from(document.querySelectorAll('.task-checkbox:checked')).map(cb => parseInt(cb.value));
+            if (ids.length === 0) {
+                UIUtils.warning('提示', '请先选择要删除的任务');
+                return;
+            }
+            UIUtils.confirm({
+                title: '批量删除',
+                message: `确定要删除选中的 ${ids.length} 个任务吗？`,
+                type: 'danger',
+                okText: '删除',
+                onConfirm: async () => {
+                    try {
+                        const resp = await fetch('/api/tasks/batch-delete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids })
+                        });
+                        const result = await resp.json();
+                        
+                        let message = `已处理 ${result.deleted_count} 个任务（有报告的任务已保留为可查看状态）`;
+                        if (result.blocked && result.blocked.length > 0) {
+                            message += `\n${result.message || `${result.blocked.length} 个已完成的任务（报告）无法删除`}`;
+                        }
+                        
+                        UIUtils.success('删除完成', message);
+                        loadTasks(currentPage);
+                    } catch (error) {
+                        console.error('Failed to batch delete:', error);
+                        UIUtils.error('批量删除失败', error.message);
+                    }
+                }
+            });
+        }
+
+        // 使用聚合接口优化页面加载速度
+        async function loadPageInit() {
+            try {
+                const system_os = getSelectedSystem();
+                const url = new URL('/api/tasks/init', window.location.origin);
+                url.searchParams.set('system_os', system_os);
+                
+                const response = await fetch(url.toString());
+                const data = await response.json();
+                
+                // 初始化设备列表
+                devices = data.devices || [];
+                renderDeviceList(devices);
+                
+                // 初始化脚本列表
+                scripts = data.scripts || [];
+                renderScriptList(scripts);
+                
+                // 初始化项目列表
+                projects = data.projects || [];
+                renderProjectToModal(projects);
+                
+                // 初始化任务列表
+                allTasks = data.tasks || [];
+                totalItems = allTasks.length;
+                currentPage = 1;
+                loadTasks(1);
+                
+                console.log('Page loaded via aggregated API in', performance.now().toFixed(2), 'ms');
+            } catch (error) {
+                console.error('Failed to load page init data:', error);
+                // 降级到单独接口调用
+                await loadDevices();
+                await loadScripts();
+                await loadProjectToModal();
+                loadTasks();
+            }
+        }
+
+        function renderDeviceList(deviceList) {
+            const container = document.getElementById('task-devices');
+            const selectedDeviceIds = new Set(
+                Array.from(document.querySelectorAll('.device-checkbox:checked')).map(cb => cb.value)
+            );
+            container.innerHTML = '';
+
+            if (deviceList.length === 0) {
+                container.innerHTML = '<div class="text-gray-400 text-xs text-center py-2">未发现设备</div>';
+                return;
+            }
+
+            deviceList.forEach(device => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center py-1.5 px-2 rounded hover:bg-gray-50 cursor-pointer text-sm';
+                label.innerHTML = `
+                    <input type="checkbox" class="device-checkbox mr-2 rounded border-gray-300" value="${device.id}" ${selectedDeviceIds.has(String(device.id)) ? 'checked' : ''}>
+                    <span class="text-gray-700">${getDeviceDisplayName(device)}</span>
+                `;
+                container.appendChild(label);
+            });
+
+            document.querySelectorAll('.device-checkbox').forEach(cb => {
+                cb.addEventListener('change', () => { updateSelectedCounts(); updateTaskSaveButton(); });
+            });
+            updateSelectedCounts();
+            updateTaskSaveButton();
+        }
+
+        function renderScriptList(scriptList) {
+            const container = document.getElementById('task-scripts');
+            const selectedScriptIds = new Set(
+                Array.from(document.querySelectorAll('.script-checkbox:checked')).map(cb => cb.value)
+            );
+            container.innerHTML = '';
+
+            if (scriptList.length === 0) {
+                container.innerHTML = '<div class="text-gray-400 text-xs text-center py-2">未发现脚本</div>';
+                return;
+            }
+
+            scriptList.forEach(script => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center py-1.5 px-2 rounded hover:bg-gray-50 cursor-pointer text-sm';
+                label.innerHTML = `
+                    <input type="checkbox" class="script-checkbox mr-2 rounded border-gray-300" value="${script.id}" data-name="${script.name}" ${selectedScriptIds.has(String(script.id)) ? 'checked' : ''}>
+                    <span class="text-gray-700">${script.name}</span>
+                `;
+                container.appendChild(label);
+            });
+
+            document.querySelectorAll('.script-checkbox').forEach(cb => {
+                cb.addEventListener('change', () => { updateSelectedCounts(); updateTaskSaveButton(); });
+            });
+            updateSelectedCounts();
+            updateTaskSaveButton();
+        }
+
+        function renderProjectToModal(projectList) {
+            const select = document.getElementById('task-project');
+            select.innerHTML = '<option value="">选择项目（可选）</option>';
+
+            projectList.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.id;
+                option.textContent = project.name;
+                select.appendChild(option);
+            });
+
+            // Also populate the project filter dropdown
+            const filterSelect = document.getElementById('project-filter');
+            filterSelect.innerHTML = '<option value="">全部项目</option>';
+            projectList.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.id;
+                option.textContent = project.name;
+                filterSelect.appendChild(option);
+            });
+        }
+
+        function createTaskRow(task) {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer';
+            tr.setAttribute('data-task-id', task.id);
+
+            const statusClass = {
+                pending: 'status-pending',
+                running: 'status-running',
+                finished: 'status-finished',
+                failed: 'status-failed',
+                partial_failed: 'status-failed',
+                cancelled: 'status-cancelled'
+            }[task.status] || 'status-pending';
+            const testTypeText = task.test_type === 'ui-compatibility' ? 'UI兼容性测试' : '普通测试';
+
+            tr.innerHTML = `
+                <td class="py-3 px-2">
+                    <input type="checkbox" class="task-checkbox rounded border-gray-300" value="${task.id}" onchange="updateSelectAll()">
+                </td>
+                <td class="py-3 px-3">
+                    <div class="font-medium text-gray-800 text-sm">${task.name || '未命名任务'}</div>
+                </td>
+                <td class="py-3 px-3">
+                    <span class="text-xs text-gray-500">${testTypeText}</span>
+                </td>
+                <td class="py-3 px-3">
+                    <span class="text-xs text-gray-500">${getTaskDeviceDisplay(task)}</span>
+                </td>
+                <td class="py-3 px-3">
+                    <span class="status-badge ${statusClass}">${getStatusText(task.status)}</span>
+                </td>
+                <td class="py-3 px-3">
+                    <span class="text-xs text-gray-500 truncate max-w-[150px]" title="${task.remark || ''}">${task.remark || '-'}</span>
+                </td>
+                <td class="py-3 px-3">
+                    <span class="text-xs text-gray-400">${task.created_at ? new Date(task.created_at).toLocaleString('zh-CN') : '-'}</span>
+                </td>
+                <td class="py-3 px-3">
+                    <div class="flex items-center gap-1">
+                        ${task.status === 'running' ? `
+                            <button onclick="event.stopPropagation(); cancelTask(${task.id})" class="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="中止">
+                                <i class="fa fa-stop"></i>
+                            </button>
+                        ` : ''}
+                        <button onclick="event.stopPropagation(); viewTask(${task.id})" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="查看">
+                            <i class="fa fa-eye"></i>
+                        </button>
+                        ${task.status !== 'running' ? `
+                            <button onclick="event.stopPropagation(); deleteTask(${task.id})" class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="删除">
+                                <i class="fa fa-trash"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </td>
+            `;
+
+            tr.addEventListener('click', () => viewTask(task.id));
+            return tr;
+        }
+
+        function renderTasks() {
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const pageData = allTasks.slice(start, start + PAGE_SIZE);
+
+            const tbody = document.getElementById('tasks-table');
+            if (!tbody) return; // SPA 切换后容器已被替换，避免 null 错误
+            tbody.innerHTML = '';
+
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-gray-400 text-center py-8">暂无任务</td></tr>';
+                updatePagination();
+                return;
+            }
+
+            pageData.forEach(task => {
+                const row = createTaskRow(task);
+                tbody.appendChild(row);
+            });
+
+            updatePagination();
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            PageInit.init();
+            await loadPageInit();
+        });
+    </script>
+</body>
+</html>

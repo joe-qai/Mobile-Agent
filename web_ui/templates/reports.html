@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>报告管理 - Agent Platform</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <script src="/static/js/ui-utils.js"></script>
+    <script src="/static/js/common.js"></script>
+    <style>
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); transition: all 0.3s ease; }
+        .btn-primary:hover { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
+        
+        .stat-card { background: white; border-radius: 16px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        
+        .status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+        .status-finished { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; }
+.status-failed        { background: linear-gradient(135deg, #ffe4e6, #fecdd3); color: #e11d48; }
+        .status-partial_failed { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50">
+    <div class="flex h-screen">
+        <!-- 侧边栏 -->
+        {% include "partials/sidebar.html" %}
+        
+        <!-- 主内容区 -->
+        <main id="main-content" class="ml-56 p-5 flex-1 flex flex-col overflow-hidden transition-all duration-300">
+            <div class="flex items-center justify-between mb-4 flex-shrink-0">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">报告管理</h1>
+                    <p class="text-gray-500 text-sm">查看和导出测试报告</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <!-- <button onclick="openExportModal()" class="bg-gray-700 text-white px-4 py-2 rounded-xl flex items-center hover:bg-gray-800 transition-all text-sm">
+                        <i class="fa fa-download mr-2"></i>导出报告
+                    </button> -->
+                    <button id="batch-download-btn" onclick="batchDownloadReport()" class="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center hover:bg-blue-700 transition-all text-sm" style="display:none">
+                        <i class="fa fa-file-archive-o mr-2"></i>批量下载(ZIP)
+                    </button>
+                    <button id="batch-delete-btn" onclick="batchDeleteReports()" class="border border-red-200 text-red-600 px-4 py-2 rounded-xl flex items-center hover:bg-red-50 transition-all text-sm" style="display:none">
+                        <i class="fa fa-trash mr-2"></i>批量删除
+                    </button>
+                </div>
+            </div>
+                
+            <!-- 统计卡片 -->
+            <div class="grid grid-cols-5 gap-4 mb-4 flex-shrink-0">
+                <div class="stat-card flex items-center">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mr-3">
+                        <i class="fa fa-file-text-o text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-xs">报告总数</p>
+                        <p id="stat-total" class="text-xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+                <div class="stat-card flex items-center">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center mr-3">
+                        <i class="fa fa-exclamation-circle text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-xs">阻塞</p>
+                        <p id="stat-blocker" class="text-xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+                <div class="stat-card flex items-center">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center mr-3">
+                        <i class="fa fa-warning text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-xs">严重</p>
+                        <p id="stat-major" class="text-xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+                <div class="stat-card flex items-center">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mr-3">
+                        <i class="fa fa-exclamation-triangle text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-700 text-xs ">警告</p>
+                        <p id="stat-minor" class="text-xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+                <div class="stat-card flex items-center">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mr-3">
+                        <i class="fa fa-info-circle text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-700 text-xs ">建议</p>
+                        <p id="stat-suggestion" class="text-xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 报告列表 -->
+            <div class="bg-white rounded-xl shadow border border-gray-100 p-4 flex-1 flex flex-col min-h-0 flex-grow">
+                <div class="overflow-x-auto flex-1 min-h-0" style="max-height: calc(100vh - 260px);">
+                    <table class="w-full">
+                        <thead class="sticky top-0 bg-white">
+                            <tr class="border-b border-gray-200">
+                                <th class="w-8 py-3 px-3">
+                                    <input type="checkbox" id="select-all" onchange="toggleSelectAll()" class="rounded border-gray-300">
+                                </th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">报告名称</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">测试类型</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">状态</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">时长</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">创建时间</th>
+                                <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reports-table" class="overflow-y-auto">
+                            <tr>
+                                <td colspan="7" class="text-center py-8 text-gray-400 text-xs">
+                                    <i class="fa fa-spinner fa-spin text-lg mb-1 block"></i>
+                                    加载中...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="pagination-container" class="flex items-center justify-center mt-4 space-x-2 flex-shrink-0"></div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        let allReports = [];
+        var PAGE_SIZE = 10;
+        let currentPage = 1;
+        let totalItems = 0;
+
+        function toggleDeviceExpand(taskId) {
+            const row = document.querySelector(`[data-device-expand-row="${taskId}"]`);
+            if (!row) return;
+            row.classList.toggle('hidden');
+            const icon = row.parentElement.querySelector(`.device-toggle[onclick*="${taskId}"]`) || document.querySelector(`.device-toggle[onclick*="${taskId}"]`);
+            if (icon) {
+                icon.style.transform = row.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(90deg)';
+            }
+        }
+
+        async function deleteDevice(taskId, deviceId) {
+            UIUtils.confirm({
+                title: '删除设备',
+                message: `确定要删除设备 ${deviceId} 的测试结果吗？此操作无法撤销。`,
+                type: 'danger',
+                okText: '删除',
+                onConfirm: async () => {
+                    try {
+                        const resp = await fetch(`/api/reports/${taskId}/devices/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+                        const result = await resp.json();
+                        if (resp.ok && result.success) {
+                            UIUtils.success('删除成功', `设备 ${deviceId} 的子任务已删除`);
+                            loadReports(currentPage);
+                        } else {
+                            UIUtils.error('删除失败', result.detail || '未知错误');
+                        }
+                    } catch (error) {
+                        console.error('Failed to delete device:', error);
+                        UIUtils.error('删除失败', error.message);
+                    }
+                }
+            });
+        }
+
+        async function loadReports(page = 1) {
+            currentPage = page;
+            try {
+                const response = await fetch(`/api/reports/?page=${page}&size=${PAGE_SIZE}`);
+                const data = await response.json();
+                const pageData = Array.isArray(data) ? data : (data.items || []);
+                totalItems = data.total || pageData.length;
+                allReports = pageData;
+
+                const stats = data.stats || {};
+                updateStats(
+                    stats.total || totalItems,
+                    stats.blocker || 0,
+                    stats.major || 0,
+                    stats.minor || 0,
+                    stats.suggestion || 0
+                );
+                
+                const tbody = document.getElementById('reports-table');
+                tbody.innerHTML = '';
+                
+                if (pageData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400 text-xs"><i class="fa fa-bar-chart text-lg mb-1 block"></i>暂无报告</td></tr>';
+                    updatePagination();
+                    return;
+                }
+                
+                pageData.forEach(report => {
+                    const hasChildren = report.children && report.children.length > 0;
+                    const hasResult = report.status === 'finished' || report.status === 'failed' || report.status === 'partial_failed';
+                    const reportName = report.name || report.task_name || report.remark || [report.project_name, report.script_name].filter(Boolean).join(' / ') || '-';
+                    const testType = report.test_type === 'ui-compatibility' ? 'UI兼容性' : '普通测试';
+                    const testTypeClass = report.test_type === 'ui-compatibility' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700';
+                    const duration = calculateDuration(report.created_at, report.completed_at);
+                    const statusLabel = report.status === 'finished' ? '成功' : (report.status === 'partial_failed' ? '部分失败' : '失败');
+
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-50 hover:bg-gray-50 transition-colors';
+                    row.innerHTML = `
+                        <td class="py-3 px-3">
+                            <input type="checkbox" class="report-checkbox rounded border-gray-300" value="${report.task_id}" onchange="updateBatchButton()">
+                        </td>
+                        <td class="py-3 px-3 text-sm text-gray-800 truncate max-w-[200px]">
+                            ${hasChildren ? `<i class="fa fa-chevron-right text-gray-400 mr-1 cursor-pointer device-toggle" onclick="toggleDeviceExpand('${report.task_id}')" style="font-size:10px;transition:transform .2s"></i>` : ''}
+                            ${reportName}
+                        </td>
+                        <td class="py-3 px-3"><span class="px-2 py-1 rounded text-xs font-medium ${testTypeClass}">${testType}</span></td>
+                        <td class="py-3 px-3"><span class="status-badge status-${report.status}">${statusLabel}</span></td>
+                        <td class="py-3 px-3 text-xs text-gray-500">${duration}</td>
+                        <td class="py-3 px-3 text-xs text-gray-500">${formatDateTime(report.created_at)}</td>
+                        <td class="py-3 px-3">
+                            <div class="flex items-center gap-2">
+                                ${hasResult ? `
+                                <a href="/api/reports/${report.task_id}/html" target="_blank" title="在线预览" class="text-blue-600 hover:text-blue-800 text-sm">
+                                    <i class="fa fa-eye"></i>
+                                </a>
+                                <a href="/api/reports/${report.task_id}/html/download" target="_blank" title="下载HTML报告" class="text-green-600 hover:text-green-800 text-sm">
+                                    <i class="fa fa-download"></i>
+                                </a>
+                                ` : ''}
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+
+                    if (hasChildren) {
+                        const childRow = document.createElement('tr');
+                        childRow.className = 'hidden';
+                        childRow.setAttribute('data-device-expand-row', report.task_id);
+                        let deviceRows = '';
+                        report.children.forEach(child => {
+                            const childStatusLabel = child.status === 'finished' ? '成功' : (child.status === 'failed' ? '失败' : child.status);
+                            deviceRows += `
+                                <tr class="border-b border-gray-100 bg-gray-50/50">
+                                    <td class="py-2 px-3"></td>
+                                    <td class="py-2 px-3 text-xs text-gray-600 pl-8" colspan="2">
+                                        <i class="fa fa-mobile text-gray-400 mr-1"></i>${child.device_display_name || '未知设备'}
+                                    </td>
+                                    <td class="py-2 px-3 text-xs"><span class="status-badge status-${child.status}">${childStatusLabel}</span></td>
+                                    <td class="py-2 px-3 text-xs text-gray-500" colspan="1"></td>
+                                    <td class="py-2 px-3 text-xs text-gray-500"></td>
+                                    <td class="py-2 px-3">
+                                        <button onclick="deleteDevice(${report.task_id}, '${child.device_id}')" title="删除该设备" class="text-red-500 hover:text-red-700 text-xs">
+                                            <i class="fa fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        childRow.innerHTML = `
+                            <td colspan="7" class="p-0">
+                                <table class="w-full">
+                                    <tbody>${deviceRows}</tbody>
+                                </table>
+                            </td>
+                        `;
+                        tbody.appendChild(childRow);
+                    }
+                });
+                updatePagination();
+            } catch (error) {
+                console.error('Failed to load reports:', error);
+            }
+        }
+        
+        function updateStats(total, blocker, major, minor, suggestion) {
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-blocker').textContent = blocker || 0;
+            document.getElementById('stat-major').textContent = major || 0;
+            document.getElementById('stat-minor').textContent = minor || 0;
+            document.getElementById('stat-suggestion').textContent = suggestion || 0;
+        }
+        
+        function parseLocalDateTime(dtStr) {
+            if (!dtStr) return null;
+            
+            const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(dtStr);
+            if (hasTimezone) {
+                const date = new Date(dtStr);
+                if (!isNaN(date.getTime())) return date;
+            }
+
+            if (dtStr.includes('T')) {
+                const date = new Date(dtStr);
+                if (!isNaN(date.getTime())) return date;
+            }
+            
+            // 不带时区的时间字符串，SQLite 存储的是 UTC，补上 Z 标记
+            const date = new Date(dtStr.replace(' ', 'T') + 'Z');
+            if (!isNaN(date.getTime())) return date;
+            return null;
+        }
+
+        function calculateDuration(createdAt, completedAt) {
+            if (!createdAt || !completedAt) {
+                return '-';
+            }
+            const start = parseLocalDateTime(createdAt);
+            const end = parseLocalDateTime(completedAt);
+            const diff = end.getTime() - start.getTime();
+
+            if (isNaN(diff)) {
+                return '-';
+            }
+
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m ${seconds}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${seconds}s`;
+            } else {
+                return `${seconds}s`;
+            }
+        }
+        
+        function updatePagination() {
+            const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+            const container = document.getElementById('pagination-container');
+            if (container) {
+                container.innerHTML = `
+                    <span class="text-xs text-gray-600">共 ${totalItems} 条</span>
+                    <span class="text-xs text-gray-400 mx-1">|</span>
+                    <span class="text-xs text-gray-600">第 ${currentPage}/${totalPages || 1} 页</span>
+                    <select onchange="changePageSize(this.value)" 
+                            class="ml-2 px-2 py-1 rounded border border-gray-200 text-gray-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="10" ${PAGE_SIZE === 10 ? 'selected' : ''}>10条/页</option>
+                        <option value="20" ${PAGE_SIZE === 20 ? 'selected' : ''}>20条/页</option>
+                        <option value="50" ${PAGE_SIZE === 50 ? 'selected' : ''}>50条/页</option>
+                        <option value="100" ${PAGE_SIZE === 100 ? 'selected' : ''}>100条/页</option>
+                    </select>
+                    <button onclick="loadReports(${currentPage - 1})"
+                            class="ml-2 px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            ${currentPage <= 1 ? 'disabled' : ''}>
+                        <i class="fa fa-chevron-left mr-0.5"></i>上一页
+                    </button>
+                    <button onclick="loadReports(${currentPage + 1})"
+                            class="px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            ${currentPage >= totalPages ? 'disabled' : ''}>
+                        下一页<i class="fa fa-chevron-right ml-0.5"></i>
+                    </button>
+                `;
+            }
+        }
+        
+        function changePageSize(size) {
+            PAGE_SIZE = parseInt(size);
+
+            currentPage = 1;
+            loadReports(1);
+        }
+        
+        async function viewReport(taskId) {
+            try {
+                const response = await fetch(`/api/reports/${taskId}`);
+                const report = await response.json();
+                
+                const result = typeof report.result === 'object' ? JSON.stringify(report.result, null, 2) : report.result;
+                
+                const modalContent = document.createElement('div');
+                modalContent.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4';
+                modalContent.onclick = function(e) { if (e.target === this) this.remove(); };
+                modalContent.innerHTML = `
+                    <div class="bg-white rounded-2xl p-5 max-w-2xl w-full max-h-[80vh] overflow-auto">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-bold text-gray-800">任务报告</h3>
+                            <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
+                                <i class="fa fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">任务ID</span>
+                                <span class="font-medium text-gray-800">${report.task_id}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">状态</span>
+                                <span class="status-badge status-${report.status}">${report.status === 'finished' ? '成功' : (report.status === 'partial_failed' ? '部分失败' : '失败')}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">创建时间</span>
+                                <span class="text-gray-800">${formatDateTime(report.created_at)}</span>
+                            </div>
+                            ${result ? `
+                            <div>
+                                <span class="text-gray-500 block mb-1">执行结果</span>
+                                <pre class="bg-gray-50 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">${result}</pre>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modalContent);
+            } catch (error) {
+                console.error('Failed to load report:', error);
+            }
+        }
+        
+        function toggleSelectAll() {
+            const checked = document.getElementById('select-all').checked;
+            document.querySelectorAll('.report-checkbox').forEach(cb => cb.checked = checked);
+            updateBatchButton();
+        }
+
+        function updateBatchButton() {
+            const checked = document.querySelectorAll('.report-checkbox:checked');
+            const downloadBtn = document.getElementById('batch-download-btn');
+            const deleteBtn = document.getElementById('batch-delete-btn');
+            const show = checked.length > 0;
+            downloadBtn.style.display = show ? 'inline-flex' : 'none';
+            deleteBtn.style.display = show ? 'inline-flex' : 'none';
+            if (checked.length > 0) {
+                if (checked.length === 1) {
+                    downloadBtn.innerHTML = '<i class="fa fa-download mr-2"></i>下载HTML';
+                } else if (checked.length > 1) {
+                    downloadBtn.innerHTML = `<i class="fa fa-file-archive-o mr-2"></i>批量下载(${checked.length})`;
+                }
+                deleteBtn.innerHTML = `<i class="fa fa-trash mr-2"></i>批量删除(${checked.length})`;
+            }
+        }
+
+        async function batchDeleteReports() {
+            const checked = document.querySelectorAll('.report-checkbox:checked');
+            const ids = Array.from(checked).map(cb => parseInt(cb.value));
+            if (ids.length === 0) return;
+            UIUtils.confirm({
+                title: '批量删除',
+                message: `确定要删除选中的 ${ids.length} 个报告吗？此操作无法撤销。`,
+                type: 'danger',
+                okText: '删除',
+                onConfirm: async () => {
+                    try {
+                        const resp = await fetch('/api/reports/batch-delete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids })
+                        });
+                        const result = await resp.json();
+                        UIUtils.success('删除成功', `已删除 ${result.deleted_count} 个报告`);
+                        loadReports();
+                    } catch (error) {
+                        console.error('Failed to batch delete:', error);
+                        UIUtils.error('批量删除失败', error.message);
+                    }
+                }
+            });
+        }
+
+        async function batchDownloadReport() {
+            const checked = document.querySelectorAll('.report-checkbox:checked');
+            const ids = Array.from(checked).map(cb => parseInt(cb.value));
+            if (ids.length === 0) return;
+
+            if (ids.length === 1) {
+                window.open(`/api/reports/${ids[0]}/html/download`, '_blank');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/reports/batch-export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids })
+                });
+                if (!response.ok) throw new Error('Export failed');
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'reports_export.zip';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Failed to batch download reports:', error);
+                UIUtils.error('导出失败', error.message);
+            }
+        }
+
+        function openExportModal() {
+            if (allReports.length === 0) {
+                UIUtils.warning('暂无报告', '没有可导出的报告');
+                return;
+            }
+            const taskIds = allReports.map(r => r.task_id);
+
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4';
+            modal.onclick = function(e) { if (e.target === this) this.remove(); };
+            modal.innerHTML = `
+                <div class="bg-white rounded-2xl p-5 max-w-sm w-full">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-base font-bold text-gray-800">导出报告</h3>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fa fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-4">选择导出格式：</p>
+                    <div class="space-y-2">
+                        <button onclick="batchDownloadZIP(${JSON.stringify(taskIds)}); this.closest('.fixed').remove()"
+                                class="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-sm flex items-center">
+                            <i class="fa fa-file-archive-o mr-3 text-purple-500"></i>
+                            <div>
+                                <span class="font-medium text-gray-800">ZIP 压缩包 (HTML)</span>
+                                <p class="text-xs text-gray-400">HTML格式报告，可直接查看</p>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        async function batchDownloadZIP(taskIds) {
+            if (taskIds.length === 1) {
+                window.open(`/api/reports/${taskIds[0]}/html/download`, '_blank');
+                return;
+            }
+            try {
+                const response = await fetch('/api/reports/batch-export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: taskIds })
+                });
+                if (!response.ok) throw new Error('Export failed');
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'reports_export.zip';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Failed to batch download reports:', error);
+                UIUtils.error('导出失败', error.message);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            loadReports();
+            PageInit.init();
+        });
+    </script>
+</body>
+</html>

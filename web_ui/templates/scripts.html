@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>脚本管理 - Agent Platform</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <script src="/static/js/ui-utils.js"></script>
+    <script src="/static/js/common.js"></script>
+    <style>
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); transition: all 0.3s ease; }
+        .btn-primary:hover { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
+        
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-overlay.show { display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease; }
+        .modal-content { background: white; border-radius: 20px; padding: 32px; width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); animation: slideUp 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .badge-blue {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 11px;
+            border-radius: 4px;
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .badge-orange {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 11px;
+            border-radius: 4px;
+            background: #fed7aa;
+            color: #ea580c;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50">
+    <div class="flex h-screen">
+        <!-- 侧边栏 -->
+        {% include "partials/sidebar.html" %}
+        
+        <!-- 主内容区 -->
+        <main id="main-content" class="ml-56 p-5 flex-1 flex flex-col overflow-hidden transition-all duration-300">
+            <div class="flex items-center justify-between mb-4 flex-shrink-0">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">脚本管理</h1>
+                    <p class="text-gray-500 text-sm">管理自动化测试脚本</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="batch-download-btn" onclick="batchDownloadScripts()" class="border border-blue-200 text-blue-600 px-4 py-2 rounded-xl flex items-center hover:bg-blue-50 transition-all text-sm" style="display:none">
+                        <i class="fa fa-download mr-2"></i>批量下载
+                    </button>
+                    <button id="batch-delete-btn" onclick="batchDeleteScripts()" class="border border-red-200 text-red-600 px-4 py-2 rounded-xl flex items-center hover:bg-red-50 transition-all text-sm" style="display:none">
+                        <i class="fa fa-trash mr-2"></i>批量删除
+                    </button>
+                    <label class="btn-primary text-white px-4 py-2.5 rounded-xl flex items-center cursor-pointer text-sm">
+                        <i class="fa fa-upload mr-2"></i>上传脚本
+                        <input type="file" id="script-upload" class="hidden" accept=".py,.json,.js">
+                    </label>
+                </div>
+            </div>
+            
+            <!-- 筛选栏 -->
+            <div class="flex items-center gap-2 mb-3 flex-shrink-0">
+                <select id="project-filter" class="form-control" style="width: auto; display: inline-block;" onchange="loadScripts(1)">
+                    <option value="">全部项目</option>
+                </select>
+                <select id="source-filter" class="form-control" style="width: auto; display: inline-block;" onchange="loadScripts(1)">
+                    <option value="">全部来源</option>
+                    <option value="local">本地上传</option>
+                    <option value="agent">Agent 生成</option>
+                </select>
+                <select id="system-filter" class="form-control" style="width: auto; display: inline-block;" onchange="loadScripts(1)">
+                    <option value="">全部系统</option>
+                    <option value="Android">Android</option>
+                    <option value="iOS">iOS</option>
+                    <option value="HarmonyOS">HarmonyOS</option>
+                </select>
+            </div>
+            
+            <!-- 脚本列表 -->
+            <div class="bg-white rounded-xl shadow border border-gray-100 p-4 flex-1 flex flex-col min-h-0">
+                <div class="overflow-x-auto flex-1 min-h-0" style="max-height: calc(100vh - 200px);">
+                    <table class="w-full">
+                        <thead class="bg-white sticky top-0 z-10 border-b border-gray-200">
+                            <tr>
+                                <th class="text-left py-3 px-4 w-10">
+                                    <input type="checkbox" id="select-all-scripts" onchange="toggleAllScripts()" class="rounded border-gray-300">
+                                </th>
+                                <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500">名称</th>
+                                <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500">项目</th>
+                                <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500">来源</th>
+                                <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500">系统</th>
+                                <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500">创建时间</th>
+                                <th class="text-left py-3 px-4 text-xs font-semibold text-gray-500">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scripts-table" class="overflow-y-auto">
+                            <tr>
+                                <td colspan="7" class="text-center py-8 text-gray-400 text-xs">
+                                    <i class="fa fa-spinner fa-spin text-lg mb-1 block"></i>
+                                    加载中...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="pagination-container" class="flex items-center justify-center mt-4 space-x-2 flex-shrink-0"></div>
+            </div>
+
+        <!-- 查看脚本弹窗 -->
+        <div id="view-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 id="view-modal-title" class="text-lg font-bold text-gray-800">脚本内容</h2>
+                    <button onclick="closeViewModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                <pre id="view-modal-content" class="bg-gray-50 p-4 rounded-xl text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"></pre>
+            </div>
+        </div>
+
+        <!-- 下载脚本弹窗 -->
+        <div id="download-modal" class="modal-overlay">
+            <div class="modal-content" style="width: 90%; max-width: 450px;">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold text-gray-800">下载脚本</h2>
+                    <button onclick="closeDownloadModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                <form id="download-form" onsubmit="downloadScriptWithName(event)">
+                    <input type="hidden" id="download-script-id">
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">文件名</label>
+                        <input type="text" id="download-filename" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm" required>
+                    </div>
+                    <div class="flex justify-end space-x-2">
+                        <button type="button" onclick="closeDownloadModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-all text-sm">取消</button>
+                        <button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg font-medium text-sm">下载</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <!-- 上传脚本弹窗 -->
+        <div id="upload-modal" class="modal-overlay">
+            <div class="modal-content" style="width: 90%; max-width: 450px;">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="btn-primary text-white px-4 py-2 rounded-xl font-medium flex items-center cursor-pointer text-sm">上传脚本</h2>
+                    <button onclick="closeUploadModal()" class="text-blue-400 hover:text-blue-600">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                <form id="upload-form" onsubmit="confirmUpload(event)">
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">所属项目</label>
+                        <select id="upload-project-select" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm">
+                            <option value="">不关联项目</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">目标系统</label>
+                        <div class="flex gap-3">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="upload-system" value="Android" checked class="w-4 h-4 text-green-600 border-gray-300">
+                                <span class="ml-2 text-sm text-gray-700">Android</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="upload-system" value="iOS" class="w-4 h-4 text-orange-600 border-gray-300">
+                                <span class="ml-2 text-sm text-gray-700">iOS</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="upload-system" value="HarmonyOS" class="w-4 h-4 text-blue-600 border-gray-300">
+                                <span class="ml-2 text-sm text-gray-700">HarmonyOS</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-2">
+                        <button type="button" onclick="closeUploadModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-all text-sm">取消</button>
+                        <button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg font-medium text-sm">确认上传</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 编辑脚本弹窗 -->
+        <div id="edit-modal" class="modal-overlay">
+            <div class="modal-content" style="width: 90%; max-width: 700px;">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 id="edit-modal-title" class="text-lg font-bold text-gray-800">编辑脚本</h2>
+                    <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                <form id="edit-script-form" onsubmit="saveScript(event)">
+                    <input type="hidden" id="edit-script-id">
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">所属项目</label>
+                        <select id="edit-script-project" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm">
+                            <option value="">不关联项目</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">目标系统</label>
+                        <div class="flex gap-3">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="edit-system" value="Android" class="w-4 h-4 text-green-600 border-gray-300">
+                                <span class="ml-2 text-sm text-gray-700">Android</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="edit-system" value="iOS" class="w-4 h-4 text-orange-600 border-gray-300">
+                                <span class="ml-2 text-sm text-gray-700">iOS</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="edit-system" value="HarmonyOS" class="w-4 h-4 text-blue-600 border-gray-300">
+                                <span class="ml-2 text-sm text-gray-700">HarmonyOS</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">脚本名称</label>
+                        <input type="text" id="edit-script-name" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">脚本内容</label>
+                        <textarea id="edit-script-content" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm font-mono" rows="15" required></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-2">
+                        <button type="button" onclick="closeEditModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-all text-sm">取消</button>
+                        <button id="script-save-btn" type="submit" class="btn-primary text-white px-4 py-2 rounded-lg font-medium text-sm">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            PageInit.init();
+        });
+
+        let editingScriptId = null;
+        var PAGE_SIZE = 10;
+        let currentPage = 1;
+        let totalItems = 0;
+        
+        function getSystemColor(systemOs) {
+            const colors = {
+                'Android': 'background-color: #3DDC84; color: #1B5E20;',
+                'iOS': 'background-color: #FF9500; color: #8B4513;',
+                'HarmonyOS': 'background-color: #007DFF; color: white;'
+            };
+            return colors[systemOs] || 'background-color: #E5E7EB; color: #374151;';
+        }
+        
+        let scriptProjects = [];
+
+        async function loadProjectFilter() {
+            try {
+                const response = await fetch('/api/projects');
+                const data = await response.json();
+                scriptProjects = data.items || [];
+                const select = document.getElementById('project-filter');
+                select.innerHTML = '<option value="">全部项目</option>';
+                scriptProjects.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name;
+                    select.appendChild(opt);
+                });
+            } catch (error) {
+                console.error('Failed to load projects:', error);
+            }
+        }
+
+        function getProjectName(projectId) {
+            const p = scriptProjects.find(p => p.id === projectId);
+            return p ? p.name : '-';
+        }
+
+        async function loadScripts(page = 1) {
+            currentPage = page;
+            try {
+                const source = document.getElementById('source-filter')?.value || '';
+                const system_os = document.getElementById('system-filter')?.value || '';
+                const project_id = document.getElementById('project-filter')?.value || '';
+                const url = new URL('/api/scripts', window.location.origin);
+                url.searchParams.set('page', page);
+                url.searchParams.set('size', PAGE_SIZE);
+                if (source) url.searchParams.set('source', source);
+                if (system_os) url.searchParams.set('system_os', system_os);
+                if (project_id) url.searchParams.set('project_id', project_id);
+                
+                const response = await fetch(url.toString());
+                const data = await response.json();
+                const scripts = data.items || [];
+                totalItems = data.total || scripts.length;
+                
+                const tbody = document.getElementById('scripts-table');
+                tbody.innerHTML = '';
+                
+                if (scripts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400 text-xs"><i class="fa fa-file-code-o text-lg mb-1 block"></i>暂无脚本</td></tr>';
+                    updatePagination();
+                    return;
+                }
+                
+                    scripts.forEach(script => {
+                        const systemColor = getSystemColor(script.system_os);
+                        const row = document.createElement('tr');
+                        row.className = 'border-b border-gray-50 hover:bg-gray-50 transition-colors';
+                        row.innerHTML = `
+                            <td class="py-3 px-4"><input type="checkbox" class="script-checkbox rounded border-gray-300" value="${script.id}" onchange="updateSelectAll()"></td>
+                            <td class="py-3 px-4 text-sm text-gray-800 font-medium">${script.name}</td>
+                            <td class="py-3 px-4 text-xs text-gray-500">${getProjectName(script.project_id)}</td>
+                            <td class="py-3 px-4">${script.source === 'agent' ? '<span class="badge-blue">agent</span>' : '<span class="badge-orange">local</span>'}</td>
+                            <td class="py-3 px-4"><span class="px-2 py-1 rounded-full text-xs font-medium" style="${systemColor}">${script.system_os || 'Android'}</span></td>
+                            <td class="py-3 px-4 text-xs text-gray-500">${formatDateTime(script.created_at)}</td>
+                        <td class="py-3 px-4">
+                            <button onclick="viewScript(${script.id})" class="text-blue-600 hover:text-blue-800 mr-2 transition-colors text-sm" title="查看">
+                                <i class="fa fa-eye"></i>
+                            </button>
+                            <button onclick="downloadScript(${script.id})" class="text-orange-600 hover:text-orange-800 mr-2 transition-colors text-sm" title="下载">
+                                <i class="fa fa-download"></i>
+                            </button>
+                            <button onclick="editScript(${script.id})" class="text-green-600 hover:text-green-800 mr-2 transition-colors text-sm" title="编辑">
+                                <i class="fa fa-edit"></i>
+                            </button>
+                            <button onclick="copyScript(${script.id})" class="text-purple-600 hover:text-purple-800 mr-2 transition-colors text-sm" title="复制">
+                                <i class="fa fa-copy"></i>
+                            </button>
+                            <button onclick="deleteScript(${script.id})" class="text-red-600 hover:text-red-800 transition-colors text-sm" title="删除">
+                                <i class="fa fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                updatePagination();
+            } catch (error) {
+                console.error('Failed to load scripts:', error);
+            }
+        }
+        
+        function updatePagination() {
+            const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+            const container = document.getElementById('pagination-container');
+            if (container) {
+                container.innerHTML = `
+                    <span class="text-xs text-gray-600">共 ${totalItems} 条</span>
+                    <span class="text-xs text-gray-400 mx-1">|</span>
+                    <span class="text-xs text-gray-600">第 ${currentPage}/${totalPages} 页</span>
+                    <select onchange="changePageSize(this.value)" 
+                            class="ml-2 px-2 py-1 rounded border border-gray-200 text-gray-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="10" ${PAGE_SIZE === 10 ? 'selected' : ''}>10条/页</option>
+                        <option value="20" ${PAGE_SIZE === 20 ? 'selected' : ''}>20条/页</option>
+                        <option value="50" ${PAGE_SIZE === 50 ? 'selected' : ''}>50条/页</option>
+                        <option value="100" ${PAGE_SIZE === 100 ? 'selected' : ''}>100条/页</option>
+                    </select>
+                    <button onclick="loadScripts(${currentPage - 1})"
+                            class="ml-2 px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            ${currentPage <= 1 ? 'disabled' : ''}>
+                        <i class="fa fa-chevron-left mr-0.5"></i>上一页
+                    </button>
+                    <button onclick="loadScripts(${currentPage + 1})"
+                            class="px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            ${currentPage >= totalPages ? 'disabled' : ''}>
+                        下一页<i class="fa fa-chevron-right ml-0.5"></i>
+                    </button>
+                `;
+            }
+        }
+        
+        function changePageSize(size) {
+            PAGE_SIZE = parseInt(size);
+
+            currentPage = 1;
+            loadScripts(1);
+        }
+        
+        async function viewScript(id) {
+            try {
+                const response = await fetch(`/api/scripts/${id}`);
+                const script = await response.json();
+                document.getElementById('view-modal-title').textContent = script.name;
+                document.getElementById('view-modal-content').textContent = script.content;
+                document.getElementById('view-modal').classList.add('show');
+            } catch (error) {
+                console.error('Failed to load script:', error);
+            }
+        }
+        
+        function closeViewModal() {
+            document.getElementById('view-modal').classList.remove('show');
+        }
+        
+        async function editScript(id) {
+            try {
+                document.getElementById('edit-modal').classList.add('show');
+                document.getElementById('edit-modal-title').textContent = '编辑脚本';
+
+                const response = await fetch(`/api/scripts/${id}`);
+                const script = await response.json();
+
+                // 检查元素是否存在
+                const idInput = document.getElementById('edit-script-id');
+                const nameInput = document.getElementById('edit-script-name');
+                const contentInput = document.getElementById('edit-script-content');
+                const projectSelect = document.getElementById('edit-script-project');
+
+                if (!idInput || !nameInput || !contentInput || !projectSelect) {
+                    console.error('编辑表单元素未找到');
+                    return;
+                }
+
+                idInput.value = script.id;
+                nameInput.value = script.name;
+                contentInput.value = script.content;
+                window._editMode = 'edit';
+
+                // Populate project selector
+                projectSelect.innerHTML = '<option value="">不关联项目</option>';
+                scriptProjects.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name;
+                    if (p.id === script.project_id) opt.selected = true;
+                    projectSelect.appendChild(opt);
+                });
+
+                // Set system radio
+                const systemOs = script.system_os || 'Android';
+                const systemRadio = document.querySelector(`input[name="edit-system"][value="${systemOs}"]`);
+                if (systemRadio) {
+                    systemRadio.checked = true;
+                }
+            } catch (error) {
+                console.error('Failed to load script:', error);
+            }
+        }
+        
+        async function copyScript(id) {
+            try {
+                document.getElementById('edit-modal').classList.add('show');
+                document.getElementById('edit-modal-title').textContent = '复制脚本';
+
+                const response = await fetch(`/api/scripts/${id}`);
+                const script = await response.json();
+
+                const idInput = document.getElementById('edit-script-id');
+                const nameInput = document.getElementById('edit-script-name');
+                const contentInput = document.getElementById('edit-script-content');
+                const projectSelect = document.getElementById('edit-script-project');
+
+                if (!idInput || !nameInput || !contentInput || !projectSelect) {
+                    console.error('编辑表单元素未找到');
+                    return;
+                }
+
+                idInput.value = '';
+                nameInput.value = `Copy of ${script.name}`;
+                contentInput.value = script.content;
+
+                projectSelect.innerHTML = '<option value="">不关联项目</option>';
+                scriptProjects.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name;
+                    if (p.id === script.project_id) opt.selected = true;
+                    projectSelect.appendChild(opt);
+                });
+
+                const systemOs = script.system_os || 'Android';
+                const systemRadio = document.querySelector(`input[name="edit-system"][value="${systemOs}"]`);
+                if (systemRadio) {
+                    systemRadio.checked = true;
+                }
+
+                window._editMode = 'copy';
+            } catch (error) {
+                console.error('Failed to load script for copy:', error);
+            }
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.remove('show');
+        }
+        
+        async function saveScript(event) {
+            event.preventDefault();
+            
+            const saveBtn = document.getElementById('script-save-btn');
+            const originalText = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1.5"></i>保存中...';
+            
+            const id = document.getElementById('edit-script-id').value;
+            const name = document.getElementById('edit-script-name').value;
+            const content = document.getElementById('edit-script-content').value;
+            const project_id = document.getElementById('edit-script-project').value;
+            const system_os = document.querySelector('input[name="edit-system"]:checked').value;
+
+            try {
+                const body = { name, content, project_id: project_id ? parseInt(project_id) : null, system_os };
+
+                let url, method, successMsg;
+                if (window._editMode === 'copy') {
+                    url = '/api/scripts';
+                    method = 'POST';
+                    successMsg = '脚本已创建';
+                } else {
+                    url = `/api/scripts/${id}`;
+                    method = 'PUT';
+                    successMsg = '脚本已更新';
+                }
+
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                const result = await response.json();
+                if (result.success || result.id) {
+                    closeEditModal();
+                    loadScripts(currentPage);
+                    UIUtils.success('保存成功', successMsg);
+                } else {
+                    UIUtils.error('保存失败', result.message || (window._editMode === 'copy' ? '创建脚本时出错' : '更新脚本时出错'));
+                }
+            } catch (error) {
+                console.error('Failed to save script:', error);
+                UIUtils.error('保存失败', '网络错误，请稍后重试');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+            }
+        }
+        
+        async function downloadScript(id) {
+            // 获取脚本信息，预填文件名
+            try {
+                const response = await fetch(`/api/scripts/${id}`);
+                const script = await response.json();
+                document.getElementById('download-script-id').value = id;
+                // 默认文件名使用脚本名称
+                document.getElementById('download-filename').value = `${script.name}.py`;
+                document.getElementById('download-modal').classList.add('show');
+            } catch (error) {
+                console.error('Failed to load script:', error);
+                UIUtils.error('下载失败', '无法获取脚本信息');
+            }
+        }
+        
+        function closeDownloadModal() {
+            document.getElementById('download-modal').classList.remove('show');
+        }
+        
+        async function downloadScriptWithName(event) {
+            event.preventDefault();
+            
+            const id = document.getElementById('download-script-id').value;
+            const filename = document.getElementById('download-filename').value;
+            
+            try {
+                const url = new URL(`/api/scripts/${id}/download`, window.location.origin);
+                if (filename) {
+                    url.searchParams.set('filename', filename);
+                }
+                
+                const response = await fetch(url);
+                const blob = await response.blob();
+                
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let downloadFilename = filename || `script_${id}.py`;
+                if (contentDisposition) {
+                    const match = contentDisposition.match(/filename="(.+)"/);
+                    if (match) {
+                        downloadFilename = match[1];
+                    }
+                }
+                
+                const urlObject = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = urlObject;
+                a.download = downloadFilename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(urlObject);
+                document.body.removeChild(a);
+                
+                closeDownloadModal();
+            } catch (error) {
+                console.error('Failed to download script:', error);
+                UIUtils.error('下载失败', '网络错误，请稍后重试');
+            }
+        }
+        
+        async function batchDownloadScripts() {
+            const ids = Array.from(document.querySelectorAll('.script-checkbox:checked')).map(cb => parseInt(cb.value));
+            if (ids.length === 0) {
+                UIUtils.warning('提示', '请先选择要下载的脚本');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/scripts/batch-download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids })
+                });
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'scripts.zip';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (error) {
+                console.error('Failed to batch download:', error);
+                UIUtils.error('批量下载失败', '网络错误，请稍后重试');
+            }
+        }
+        
+        async function deleteScript(id) {
+            UIUtils.confirm({
+                title: '删除脚本',
+                message: '确定要删除这个脚本吗？此操作无法撤销。',
+                type: 'danger',
+                okText: '删除',
+                onConfirm: async () => {
+                    try {
+                        await fetch(`/api/scripts/${id}`, { method: 'DELETE' });
+                        loadScripts(currentPage);
+                        UIUtils.success('删除成功', '脚本已被删除');
+                    } catch (error) {
+                        console.error('Failed to delete script:', error);
+                        UIUtils.error('删除失败', '网络错误，请稍后重试');
+                    }
+                }
+            });
+        }
+
+        function toggleAllScripts() {
+            const checked = document.getElementById('select-all-scripts').checked;
+            document.querySelectorAll('.script-checkbox').forEach(cb => cb.checked = checked);
+            updateBatchButton();
+        }
+
+        function updateSelectAll() {
+            const all = document.querySelectorAll('.script-checkbox');
+            const checked = document.querySelectorAll('.script-checkbox:checked');
+            const selectAll = document.getElementById('select-all-scripts');
+            if (selectAll) selectAll.checked = all.length === checked.length && all.length > 0;
+            updateBatchButton();
+        }
+
+        function updateBatchButton() {
+            const checked = document.querySelectorAll('.script-checkbox:checked');
+            const deleteBtn = document.getElementById('batch-delete-btn');
+            const downloadBtn = document.getElementById('batch-download-btn');
+            
+            const hasChecked = checked.length > 0;
+            deleteBtn.style.display = hasChecked ? 'inline-flex' : 'none';
+            downloadBtn.style.display = hasChecked ? 'inline-flex' : 'none';
+            
+            if (hasChecked) {
+                deleteBtn.innerHTML = `<i class="fa fa-trash mr-2"></i>批量删除(${checked.length})`;
+                downloadBtn.innerHTML = `<i class="fa fa-download mr-2"></i>批量下载(${checked.length})`;
+            }
+        }
+
+        async function batchDeleteScripts() {
+            const ids = Array.from(document.querySelectorAll('.script-checkbox:checked')).map(cb => parseInt(cb.value));
+            if (ids.length === 0) {
+                UIUtils.warning('提示', '请先选择要删除的脚本');
+                return;
+            }
+            UIUtils.confirm({
+                title: '批量删除',
+                message: `确定要删除选中的 ${ids.length} 个脚本吗？此操作无法撤销。`,
+                type: 'danger',
+                okText: '删除',
+                onConfirm: async () => {
+                    try {
+                        const resp = await fetch('/api/scripts/batch-delete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids })
+                        });
+                        const result = await resp.json();
+                        UIUtils.success('删除成功', `已删除 ${result.deleted_count} 个脚本`);
+                        loadScripts(currentPage);
+                    } catch (error) {
+                        console.error('Failed to batch delete:', error);
+                        UIUtils.error('批量删除失败', error.message);
+                    }
+                }
+            });
+        }
+
+        let uploadFile = null;
+
+        function openUploadModal() {
+            const modal = document.getElementById('upload-modal');
+            const select = document.getElementById('upload-project-select');
+            select.innerHTML = '<option value="">不关联项目</option>';
+            scriptProjects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                select.appendChild(opt);
+            });
+            document.querySelector('input[name="upload-system"][value="Android"]').checked = true;
+            modal.classList.add('show');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('upload-modal').classList.remove('show');
+            uploadFile = null;
+        }
+
+        async function confirmUpload(event) {
+            event.preventDefault();
+            if (!uploadFile) return;
+
+            const uploadBtn = document.querySelector('#upload-form button[type="submit"]');
+            if (uploadBtn.disabled) return;
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1.5"></i>上传中...';
+
+            const systemOs = document.querySelector('input[name="upload-system"]:checked').value;
+            const projectId = document.getElementById('upload-project-select').value;
+
+            const formData = new FormData();
+            formData.append('file', uploadFile);
+            formData.append('name', uploadFile.name.replace(/\.(py|json|js)$/, ''));
+            formData.append('system_os', systemOs);
+            if (projectId) formData.append('project_id', projectId);
+
+            try {
+                const response = await fetch('/api/scripts/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    UIUtils.success('上传成功', '脚本已上传');
+                    loadScripts();
+                } else {
+                    UIUtils.error('上传失败', result.message || '未知错误');
+                }
+            } catch (error) {
+                UIUtils.error('上传失败', error.message);
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '确认上传';
+            }
+            closeUploadModal();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProjectFilter();
+            loadScripts();
+
+            document.getElementById('script-upload').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                uploadFile = file;
+                e.target.value = '';
+                openUploadModal();
+            });
+        });
+    </script>
+</body>
+</html>

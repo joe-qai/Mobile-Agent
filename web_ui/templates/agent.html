@@ -1,0 +1,2005 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent - Agent Platform</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <script src="/static/js/ui-utils.js"></script>
+    <script src="/static/js/common.js"></script>
+    <style>
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); transition: all 0.3s ease; }
+        .btn-primary:hover { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
+
+        .log-container {
+            background: #ffffff;
+            color: #1f2937;
+            font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .agent-log-panel {
+            flex: 1 1 0;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overflow-wrap: anywhere;
+            overscroll-behavior: contain;
+        }
+
+        .agent-log-entry {
+            white-space: pre-wrap;
+            line-height: 1.45;
+            padding: 4px 8px;
+            margin-bottom: 2px;
+            font-size: 11px;
+            border-radius: 4px;
+            transition: background-color 0.15s ease;
+        }
+
+        .agent-log-entry:hover {
+            background: #f9fafb;
+        }
+
+        /* === 步骤卡片样式 === */
+        .react-task-card,
+        .react-step-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            overflow: hidden;
+            transition: all 0.25s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .react-step-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-color: #d1d5db;
+        }
+
+        .react-step-card.collapsed {
+            border-radius: 10px;
+        }
+
+        .react-step-card.collapsed .react-card-body {
+            display: none;
+        }
+
+        .react-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 12px;
+            background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            min-height: 44px;
+        }
+
+        .react-card-header:hover {
+            background: linear-gradient(135deg, #f3f4f6 0%, #f9fafb 100%);
+        }
+
+        .react-card-title {
+            font-weight: 600;
+            color: #111827;
+            font-size: 12px;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .react-card-title small {
+            font-weight: 400;
+            color: #6b7280;
+            font-size: 10px;
+            margin-left: 6px;
+        }
+
+        .react-card-status {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 500;
+            background: #dbeafe;
+            color: #1d4ed8;
+            flex-shrink: 0;
+        }
+
+        .react-card-status.passed {
+            background: #d1fae5;
+            color: #047857;
+        }
+
+        .react-card-status.failed {
+            background: #ffe4e6;
+            color: #9f1239;
+        }
+
+        .react-card-status.running {
+            background: #fef3c7;
+            color: #d97706;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .react-card-body {
+            padding: 12px;
+            font-size: 11px;
+            background: #ffffff;
+        }
+
+        .react-card-section {
+            margin-bottom: 12px;
+            padding: 8px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border: 1px solid #f3f4f6;
+        }
+
+        .react-card-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .react-card-section-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .react-card-section-title::before {
+            content: '';
+            width: 3px;
+            height: 10px;
+            background: #3b82f6;
+            border-radius: 2px;
+        }
+
+        .react-card-pre {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+            font-size: 11px;
+            color: #374151;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 8px 10px;
+            line-height: 1.5;
+        }
+
+        /* VLM截图预览样式 */
+        .react-card-screenshot-container {
+            margin-top: 8px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+            background: #0f172a;
+        }
+
+        .react-card-screenshot {
+            max-width: 100%;
+            max-height: 350px;
+            object-fit: contain;
+            display: block;
+        }
+
+        .react-card-screenshot-info {
+            font-size: 10px;
+            color: #9ca3af;
+            padding: 6px 10px;
+            background: #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .react-card-screenshot-info span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .react-card-screenshot-info .flags {
+            display: flex;
+            gap: 4px;
+        }
+
+        .react-card-screenshot-info .flag {
+            font-size: 9px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #cbd5e1;
+        }
+
+        /* 卡片折叠图标 */
+        .react-card-toggle {
+            font-size: 10px;
+            color: #9ca3af;
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+            padding: 2px;
+        }
+
+        .react-step-card.collapsed .react-card-toggle {
+            transform: rotate(-90deg);
+        }
+
+        .react-warning {
+            color: #b45309;
+        }
+
+        .react-error {
+            color: #b91c1c;
+        }
+
+        /* 日志类型颜色 */
+        .log-info { color: #3b82f6; }
+        .log-success { color: #10b981; }
+        .log-error { color: #e11d48; }
+        .log-warning { color: #f59e0b; }
+
+        /* 日志时间戳样式 */
+        .log-timestamp {
+            color: #9ca3af;
+            font-size: 10px;
+            margin-right: 6px;
+            flex-shrink: 0;
+        }
+
+        /* 设备卡片样式 */
+        .device-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .device-card.selected {
+            border-color: #3b82f6;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+        }
+
+        .screen-placeholder {
+            background: #ffffff;
+            border: 2px dashed #d1d5db;
+        }
+
+        .phone-container {
+            background: linear-gradient(145deg, #e5e5e5, #ffffff);
+            border-radius: 28px;
+            padding: 6px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15), inset 0 0 0 2px #d1d5db;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .phone-notch {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 24px;
+            background: #1a1a1a;
+            border-radius: 0 0 12px 12px;
+            z-index: 10;
+        }
+
+        .phone-camera {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 12px;
+            height: 12px;
+            background: #333;
+            border-radius: 50%;
+            z-index: 11;
+        }
+
+        .phone-screen-inner {
+            border-radius: 24px;
+            overflow: hidden;
+            position: relative;
+            background: #000;
+        }
+
+        .phone-screen-inner canvas:not(.hidden),
+        .phone-screen-inner video:not(.hidden) {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .phone-home-indicator {
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+
+        .agent-workspace-grid {
+            display: grid;
+            grid-template-columns: minmax(180px, 15fr) minmax(0, 60fr) minmax(260px, 25fr);
+            min-height: 0;
+        }
+
+        .agent-work-panel {
+            display: grid;
+            grid-template-rows: minmax(260px, 1fr) auto minmax(145px, 0.34fr);
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .agent-task-footer {
+            min-height: 44px;
+        }
+
+        .agent-screen-card {
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .agent-screen-stage {
+            min-height: 0;
+            position: relative;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50">
+    <div class="flex h-screen">
+        <!-- 侧边栏 -->
+        {% include "partials/sidebar.html" %}
+
+        <!-- 主内容区 - 三栏布局 -->
+        <main id="main-content" class="ml-56 p-4 flex-1 flex flex-col overflow-hidden transition-all duration-300">
+            <!-- 标题栏 -->
+            <div class="flex items-center justify-between mb-3 flex-shrink-0">
+                <div>
+                    <h1 class="text-lg font-bold text-gray-800"><i class="fa fa-magic mr-2"></i>AI Agent</h1>
+                    <p class="text-gray-500 text-xs">选择设备、输入任务、实时监控执行</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="refreshDevices()" class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs flex items-center hover:bg-blue-600 transition-all">
+                        <i class="fa fa-refresh mr-1.5"></i>刷新设备
+                    </button>
+                    <button onclick="clearLogs()" class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs flex items-center hover:bg-blue-600 transition-all">
+                        <i class="fa fa-trash mr-1.5"></i>清空日志
+                    </button>
+                </div>
+            </div>
+
+            <!-- 三栏布局 -->
+            <div class="agent-workspace-grid flex-1 min-h-0 gap-3 overflow-hidden">
+                <!-- 左侧设备选择栏 (15%) -->
+                <div class="flex flex-col min-w-0 min-h-0">
+                    <div class="bg-white rounded-xl shadow border border-gray-100 p-3 flex-1 overflow-hidden flex flex-col">
+                        <h3 class="text-sm font-semibold text-gray-800 mb-3 flex items-center">
+                            <span><i class="fa fa-mobile mr-1.5 text-blue-600 text-xs"></i>设备</span>
+                        </h3>
+                        <div id="device-list" class="flex-1 overflow-y-auto space-y-1.5">
+                            <div class="text-gray-400 text-xs text-center py-3">加载中...</div>
+                        </div>
+                        <div class="mt-2 pt-2 border-t border-gray-100">
+                            <p class="text-xs text-gray-500 mb-1">已选:</p>
+                            <div id="selected-device" class="text-xs font-medium text-blue-600 truncate">未选择</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 中间任务输入栏 (60%) -->
+                <div class="flex flex-col min-w-0 min-h-0">
+                    <div class="agent-work-panel bg-white rounded-xl shadow border border-gray-100 p-3 flex-1 min-h-0">
+                        <!-- 实时日志区 (70%) -->
+                        <div class="flex flex-col min-h-0 mb-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-sm font-semibold text-gray-800 flex items-center">
+                                    <i class="fa fa-terminal mr-1.5 text-green-600 text-xs"></i>实时日志
+                                </h3>
+                                <span class="flex items-center text-xs text-gray-400">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse"></span>实时
+                                </span>
+                            </div>
+                            <div id="logs-container" class="log-container agent-log-panel p-2 text-xs flex-1 min-h-0 overflow-y-auto">
+                                <div class="log-info log-placeholder">等待设备连接...</div>
+                            </div>
+                        </div>
+
+                        <!-- 最大步数限制 (5%) -->
+                        <div class="flex items-center justify-center border-t border-gray-100 py-2">
+                        <label class="text-[12px] text-gray-600">输入步数：</label><input type="number" id="max-steps" value="25" min="1" max="50" class="w-16 px-2 py-1 border border-gray-200 rounded text-[10px] text-center" title="步数(1-50)">
+                            <span> </span><span class="text-xs text-gray-500"><i class="fa fa-info-circle mr-1 text-blue-500"></i>最大步数限制: 50 步</span>
+                        </div>
+
+                        <!-- 任务输入区 (25%) -->
+                        <div class="flex flex-col border-t border-gray-100 pt-3 min-h-0">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-sm font-semibold text-gray-800 flex items-center">
+                                    <i class="fa fa-edit mr-1.5 text-purple-600 text-xs"></i>任务描述
+                                </h3>
+                            </div>
+                            <textarea id="task-input" class="flex-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-xs resize-none focus:ring-2 focus:ring-blue-500 mb-2" placeholder="请输入任务描述..."></textarea>
+                            <div class="agent-task-footer flex items-center gap-2 flex-shrink-0">
+                                <span class="text-xs text-gray-500">Shift+Enter：换行，Enter：开始执行任务</span>
+                                <button id="run-btn" onclick="runTask()" disabled class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ml-auto flex items-center flex-shrink-0">
+                                    <i class="fa fa-play mr-1.5"></i>执行任务
+                                </button>
+                                <button id="generate-script-btn" class="btn-primary text-white px-3 py-2 rounded-lg text-sm" style="display:none;" onclick="openScriptModal()">
+                                    <i class="fa fa-file-code-o"></i> 生成脚本
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧实时画面栏 (25%) -->
+                <div class="flex flex-col min-w-0 min-h-0">
+                    <div class="agent-screen-card bg-white rounded-xl shadow border border-gray-100 p-3 flex-1 min-h-0">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-semibold text-gray-800 flex items-center">
+                                <i class="fa fa-desktop mr-1.5 text-indigo-600 text-xs"></i>实时画面
+                            </h3>
+                            <span id="screen-status" class="text-xs text-gray-400">未连接</span>
+                        </div>
+                        <div id="screen-container" class="agent-screen-stage flex items-center justify-center bg-gray-100 p-1 overflow-hidden">
+                            <div class="phone-container">
+                                <div class="phone-notch"></div>
+                                <div class="phone-camera"></div>
+                                <div class="phone-screen-inner w-full h-full flex items-center justify-center">
+                                    <canvas id="screen-canvas" class="hidden"></canvas>
+                                    <video id="screen-video" class="hidden"></video>
+                                    <div id="screen-placeholder" class="text-center text-gray-500 px-4">
+                                        <i class="fa fa-mobile text-4xl mb-2 text-gray-400"></i>
+                                        <p class="text-xs">选择设备后可显示画面</p>
+                                        <!-- <p class="text-xs mt-1 text-gray-400">（scrcpy 实时画面）</p> -->
+                                    </div>
+                                    <div id="screen-status-dot" class="absolute top-3 left-3 w-2.5 h-2.5 rounded-full bg-gray-500 z-20"></div>
+                                    <div class="phone-home-indicator"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- uiauto.dev 启动按钮：与左侧"执行任务"按钮同一水平行 -->
+                        <div class="mt-2 flex items-center gap-2">
+                            <button id="uiauto-dev-btn" type="button"
+                                class="w-full px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0">
+                                <i class="fa fa-rocket mr-1.5"></i><span id="uiauto-dev-btn-text">启动 uiauto.dev</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            PageInit.init();
+        });
+
+        let ws = null;
+        let selectedDeviceId = null;
+        let devices = [];
+        let selectedDeviceSystem = 'Android';  // 当前选中设备的系统类型
+
+        async function loadDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                const data = await response.json();
+                devices = data.devices || [];
+
+                const deviceList = document.getElementById('device-list');
+                if (!deviceList) return; // SPA 切换后容器已被替换，避免 null 错误
+                deviceList.innerHTML = '';
+
+                if (devices.length === 0) {
+                    deviceList.innerHTML = '<div class="text-gray-400 text-xs text-center py-3">未发现设备</div>';
+                    return;
+                }
+
+                devices.forEach(device => {
+                    const isWifiDevice = isWifiConnected(device.id);
+                    const div = document.createElement('div');
+                    div.className = `device-card p-2 rounded-lg border border-gray-200 ${selectedDeviceId === device.id ? 'selected' : ''}`;
+                    div.onclick = (e) => selectDevice(device.id, e);
+                    div.innerHTML = `
+                        <div class="flex items-center space-x-1.5">
+                            <i class="fa fa-mobile text-blue-500 text-xs"></i>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-xs font-medium truncate">${escapeHtml(device.name || device.id)}</p>
+                                <p class="text-xs text-gray-400 truncate">${escapeHtml(device.model || '未知')}</p>
+                            </div>
+                            <span class="wifi-icon cursor-pointer" data-device-id="${escapeHtml(device.id)}" data-is-wifi="${isWifiDevice}" title="${isWifiDevice ? 'WiFi 已连接' : '点击连接 WiFi'}">
+                                <i class="fa fa-wifi text-xs ${isWifiDevice ? 'text-green-500' : 'text-orange-500 hover:text-orange-600'}"></i>
+                            </span>
+                        </div>
+                    `;
+                    deviceList.appendChild(div);
+                });
+
+                // 添加WiFi图标点击事件
+                document.querySelectorAll('.wifi-icon').forEach(icon => {
+                    icon.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const deviceId = icon.dataset.deviceId;
+                        const isWifi = icon.dataset.isWifi === 'true';
+                        
+                        if (!isWifi) {
+                            await connectDeviceViaWifi(deviceId, icon);
+                        }
+                    });
+                });
+
+                // 不自动选择设备，等待用户手动选择
+            } catch (error) {
+                console.error('Failed to load devices:', error);
+                const deviceList = document.getElementById('device-list');
+                if (deviceList) deviceList.innerHTML = '<div class="text-red-400 text-xs text-center py-3">加载失败</div>';
+            }
+        }
+
+        async function autoSelectFirstDevice() {
+            if (devices.length === 0) return;
+            
+            const firstDevice = devices[0];
+            selectedDeviceId = firstDevice.id;
+            document.getElementById('selected-device').textContent = firstDevice.id;
+            document.getElementById('run-btn').disabled = false;
+
+            // 更新UI显示选中状态
+            document.querySelectorAll('.device-card').forEach((card, index) => {
+                card.classList.toggle('selected', index === 0);
+            });
+
+            addLog('success', `已自动选择第一个设备: ${firstDevice.id}`);
+
+            try {
+                const resp = await fetch(`/api/devices/${firstDevice.id}/select`, { method: 'POST' });
+                const result = await resp.json();
+                if (result.success) {
+                    addLog('success', `后端设备已切换: ${firstDevice.id}`);
+                } else {
+                    addLog('warning', `设备选择失败，设备可能已离线: ${firstDevice.id}`);
+                }
+            } catch (e) {
+                addLog('error', `设备选择请求失败: ${e.message}`);
+            }
+        }
+
+        function refreshDevices() {
+            loadDevices();
+            addLog('info', '设备列表已刷新');
+        }
+
+        function isWifiConnected(deviceId) {
+            if (!deviceId) return false;
+            return deviceId.includes('.') && !deviceId.startsWith('emulator-');
+        }
+
+        async function connectDeviceViaWifi(deviceId, iconElement) {
+            addLog('info', `尝试通过WiFi连接设备: ${deviceId}`);
+            
+            try {
+                let ipAddress = deviceId;
+                
+                // 如果deviceId不是IP地址格式（不包含点），需要先获取设备IP
+                    if (!deviceId.includes('.')) {
+                        addLog('info', `设备ID不是IP格式，正在获取设备IP...`);
+                        const infoResp = await fetch(`/api/devices/info?device_id=${encodeURIComponent(deviceId)}`);
+                        if (!infoResp.ok) {
+                            addLog('error', `获取设备信息失败，HTTP ${infoResp.status}`);
+                            return;
+                        }
+                        const data = await infoResp.json();
+                        const deviceInfo = data.info;
+                        if (!deviceInfo) {
+                            addLog('error', `未找到设备信息，请确保设备已通过USB连接`);
+                            return;
+                        }
+
+                        // 尝试获取IP地址，支持多个字段名
+                        ipAddress = deviceInfo.wifi_ip || deviceInfo.ip || deviceInfo.ip_address;
+                        
+                        if (ipAddress) {
+                            addLog('info', `获取到设备IP: ${ipAddress}`);
+                        } else {
+                            addLog('error', `无法获取设备IP地址，请确保设备已通过USB连接并开启ADB调试`);
+                            return;
+                        }
+                    }
+                
+                const resp = await fetch('/api/devices/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip: ipAddress, port: '5555' })
+                });
+                const result = await resp.json();
+                
+                if (result.success) {
+                    addLog('success', `WiFi连接成功: ${ipAddress}`);
+                    // 更新图标状态
+                    iconElement.dataset.isWifi = 'true';
+                    const icon = iconElement.querySelector('i');
+                    if (icon) {
+                        icon.classList.remove('text-orange-500', 'hover:text-orange-600');
+                        icon.classList.add('text-green-500');
+                    }
+                    // 刷新设备列表
+                    await loadDevices();
+                } else {
+                    addLog('error', `WiFi连接失败: ${result.message || '未知错误'}`);
+                }
+            } catch (e) {
+                addLog('error', `WiFi连接请求失败: ${e.message}`);
+            }
+        }
+
+        async function selectDevice(deviceId, event) {
+            if (!deviceId) return;
+
+            selectedDeviceId = deviceId;
+            document.getElementById('selected-device').textContent = deviceId;
+            document.getElementById('run-btn').disabled = false;
+
+            // 更新选中设备的系统类型
+            const selectedDevice = devices.find(d => d.id === deviceId);
+            if (selectedDevice && selectedDevice.system_os) {
+                selectedDeviceSystem = selectedDevice.system_os;
+                addLog('info', `设备系统类型: ${selectedDeviceSystem}`);
+            }
+
+            document.querySelectorAll('.device-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            if (event && event.currentTarget) {
+                event.currentTarget.classList.add('selected');
+            }
+
+            addLog('success', `已选择设备: ${deviceId}`);
+
+            try {
+                const resp = await fetch(`/api/devices/${deviceId}/select`, { method: 'POST' });
+                const result = await resp.json();
+                if (result.success) {
+                    addLog('success', `后端设备已切换: ${deviceId}`);
+                } else {
+                    addLog('warning', `设备选择失败，设备可能已离线: ${deviceId}`);
+                }
+            } catch (e) {
+                addLog('error', `设备选择请求失败: ${e.message}`);
+            }
+        }
+
+        async function runTask() {
+            const remark = document.getElementById('task-input').value.trim();
+            const maxSteps = parseInt(document.getElementById('max-steps').value) || 10;
+
+            if (!remark) {
+                alert('请输入任务描述');
+                return;
+            }
+
+            // 如果没有选择设备，自动选择第一个设备
+            if (!selectedDeviceId) {
+                if (devices.length === 0) {
+                    // 尝试刷新设备列表
+                    addLog('info', '未选择设备，正在检测设备...');
+                    await loadDevices();
+                }
+                
+                if (devices.length === 0) {
+                    addLog('error', '未检测到设备，请先连接设备');
+                    return;
+                }
+                
+                // 自动选择第一个设备
+                await autoSelectFirstDevice();
+            }
+
+            const taskInput = document.getElementById('task-input');
+            
+            // 清空任务描述文本框
+            taskInput.value = '';
+            
+            // 显示 loading 状态，按钮不可点击
+            setTaskRunning(true);
+
+            addLog('info', `开始执行任务: ${remark}`);
+
+            try {
+                const response = await fetch('/api/tasks/run-direct', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: selectedDeviceId,
+                        remark: remark,
+                        max_steps: maxSteps
+                    })
+                });
+
+                const result = await response.json();
+
+                    // 无论任务执行成功还是失败，只要有脚本预览或步骤数据，都可以生成脚本
+                    if (result.script_preview) {
+                        scriptPreviewContent = result.script_preview;
+                    }
+                    
+                    // 累积步骤结果：将新步骤追加到现有数组中（无论成功失败都追加）
+                    if (result.step_results_raw && result.step_results_raw.length > 0) {
+                        // 为新步骤重新编号，避免重复
+                        const currentStepCount = scriptStepResults.length;
+                        const newSteps = result.step_results_raw.map((step, index) => ({
+                            ...step,
+                            step: currentStepCount + index + 1
+                        }));
+                        scriptStepResults = [...scriptStepResults, ...newSteps];
+                        
+                        // 如果还没有脚本预览但有步骤数据，也显示生成按钮
+                        if (!scriptPreviewContent) {
+                            scriptPreviewContent = "-- 待生成 --"; // 占位符
+                        }
+                    }
+                    
+                    // 更新任务描述，包含所有任务
+                    if (scriptTaskText) {
+                        scriptTaskText += ' → ' + remark;
+                    } else {
+                        scriptTaskText = remark;
+                    }
+                    
+                    // 只要有步骤数据就显示生成脚本按钮
+                    updateGenerateScriptAvailability();
+                    
+                    // 如果任务执行成功，显示成功提示
+                    if (result.success) {
+                        addLog('success', '任务执行成功');
+                        // 如果脚本已自动保存，显示提示
+                        if (result.auto_saved_script_id) {
+                            addLog('success', `脚本已自动保存: ${result.auto_saved_script_name}`);
+                        }
+                    } else {
+                        // 任务执行失败但有步骤数据，也应该能生成脚本
+                        const errMsg = result.error || (typeof result.result === 'string' ? result.result : null) || '未知错误';
+                        addLog('warning', `任务执行中断: ${errMsg}，但仍可生成脚本`);
+                    }
+            } catch (error) {
+                addLog('error', `执行错误: ${error.message}`);
+                setTaskRunning(false);
+            }
+            // Task completed — setTaskRunning(false) is called via:
+            // 1. task_end WebSocket event (renderReactEvent)
+            // 2. isTaskCompletionLog (addLog)
+            // 3. catch block above (network error)
+            // Do NOT reset here — the Stop button must remain active during execution.
+        }
+
+        function addLog(type, message) {
+            const container = document.getElementById('logs-container');
+            // 清除"等待设备连接..."占位
+            const placeholder = container.querySelector('.log-placeholder');
+            if (placeholder) placeholder.remove();
+            const timestamp = new Date().toLocaleTimeString('zh-CN');
+            const logClass = `log-${type}`;
+            const logElement = document.createElement('div');
+            logElement.className = `${logClass} agent-log-entry`;
+
+            const timeElement = document.createElement('span');
+            timeElement.className = 'text-gray-500';
+            timeElement.textContent = `[${timestamp}]`;
+            logElement.appendChild(timeElement);
+            logElement.appendChild(document.createTextNode(` ${message}`));
+
+            container.appendChild(logElement);
+            scrollLogsToBottom();
+        }
+
+        function addScreenshotPreview(data) {
+            if (!data || !data.screenshot) return;
+
+            const container = document.getElementById('logs-container');
+            if (!container) return; // SPA 切换后容器已被替换，直接退出避免 null 错误
+            const placeholder = container.querySelector('.log-placeholder');
+            if (placeholder) placeholder.remove();
+
+            const timestamp = new Date().toLocaleTimeString('zh-CN');
+            const src = `data:image/png;base64,${data.screenshot}`;
+            const size = data.width && data.height ? `${data.width}x${data.height}` : '已提交 VLM';
+            const flags = [];
+            if (data.is_sensitive) flags.push('sensitive');
+            if (data.is_fallback) flags.push('fallback');
+
+            const logElement = document.createElement('div');
+            logElement.className = 'log-info agent-log-entry';
+
+            const timeElement = document.createElement('span');
+            timeElement.className = 'text-gray-500';
+            timeElement.textContent = `[${timestamp}]`;
+            logElement.appendChild(timeElement);
+            logElement.appendChild(
+                document.createTextNode(
+                    ` 截图预览 · Step ${data.step || '-'} · ${size}${flags.length ? ' · ' + flags.join(' · ') : ''}`
+                )
+            );
+
+            const image = document.createElement('img');
+            image.src = src;
+            image.alt = `Step ${data.step || ''} 截图预览`;
+            image.className = 'mt-2 rounded border border-gray-700';
+            image.style.maxWidth = '260px';
+            image.style.maxHeight = '360px';
+            image.style.objectFit = 'contain';
+            image.style.display = 'block';
+            logElement.appendChild(image);
+
+            container.appendChild(logElement);
+            scrollLogsToBottom();
+        }
+
+        // === 日志和步骤状态管理 ===
+        const reactSteps = new Map();
+        let reactTaskCard = null;
+        const recentLogMessages = new Set();
+        const recentLogTimestamps = new Map();
+        const MAX_RECENT_LOGS = 100;
+        
+        // 记录每个步骤的工具调用次数，用于去重
+        const stepToolCallCount = new Map();
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatJson(value) {
+            if (value === undefined || value === null || value === '') return '';
+            if (typeof value === 'string') return value;
+            try {
+                return JSON.stringify(value, null, 2);
+            } catch (e) {
+                return String(value);
+            }
+        }
+
+        function ensureLogContainerReady() {
+            const container = document.getElementById('logs-container');
+            if (!container) return; // SPA 切换后容器已被替换，直接退出避免 null 错误
+            const placeholder = container.querySelector('.log-placeholder');
+            if (placeholder) placeholder.remove();
+            return container;
+        }
+
+        function getOrCreateReactStep(stepNumber) {
+            if (!reactSteps.has(stepNumber)) {
+                reactSteps.set(stepNumber, {
+                    step: stepNumber,
+                    status: 'running',
+                    durationMs: null,
+                    thinking: '',
+                    toolCalls: [],
+                    toolResults: [],
+                    perceptions: [],
+                    fallbacks: [],
+                    error: null,
+                    screenshot: null,
+                    screenshotInfo: null,
+                    vlmAnalysis: null
+                });
+                stepToolCallCount.set(stepNumber, 0);
+            }
+            return reactSteps.get(stepNumber);
+        }
+
+        function renderSection(title, content, className = '', isScreenshot = false) {
+            if (!content && !isScreenshot) return '';
+            
+            if (isScreenshot) {
+                const { src, info, flags = [] } = content;
+                const flagHtml = flags.map(flag => `<span class="flag">${escapeHtml(flag)}</span>`).join('');
+                return `
+                    <div class="react-card-section ${className}">
+                        <div class="react-card-section-title">${escapeHtml(title)}</div>
+                        <div class="react-card-screenshot-container">
+                            <img src="${escapeHtml(src)}" alt="截图预览" class="react-card-screenshot" />
+                            <div class="react-card-screenshot-info">
+                                <span>${escapeHtml(info || '')}</span>
+                                ${flagHtml ? `<span class="flags">${flagHtml}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return `
+                <div class="react-card-section ${className}">
+                    <div class="react-card-section-title">${escapeHtml(title)}</div>
+                    <div class="react-card-pre">${escapeHtml(content)}</div>
+                </div>
+            `;
+        }
+
+        function upsertReactTaskCard(payload) {
+            const container = ensureLogContainerReady();
+            
+            // 任务开始或结束时都清理旧的步骤状态
+            const eventName = payload.event;
+            if (eventName === 'task_start' || eventName === 'task_end') {
+                // 清理旧的步骤数据和任务卡片
+                reactSteps.clear();
+                stepToolCallCount.clear();
+                if (reactTaskCard) {
+                    reactTaskCard.remove();
+                    reactTaskCard = null;
+                }
+                // 清理旧的步骤卡片 DOM
+                const oldCards = container.querySelectorAll('.react-step-card');
+                oldCards.forEach(card => card.remove());
+            }
+            
+            if (!reactTaskCard) {
+                reactTaskCard = document.createElement('div');
+                reactTaskCard.className = 'react-task-card';
+                reactTaskCard.id = 'react-task-card';
+                container.appendChild(reactTaskCard);
+            }
+
+            const data = payload.payload || {};
+            const title = eventName === 'task_end'
+                ? `任务${data.success ? '完成' : '失败'}`
+                : 'ReAct 任务';
+            const status = eventName === 'task_end'
+                ? (data.success ? 'passed' : 'failed')
+                : 'running';
+            reactTaskCard.innerHTML = `
+                <div class="react-card-header">
+                    <span class="react-card-title">${escapeHtml(title)}</span>
+                    <span class="react-card-status ${status}">${escapeHtml(status)}</span>
+                </div>
+                <div class="react-card-body">
+                    ${renderSection('任务', data.task || data.message || '')}
+                    ${renderSection('设备', data.device_id || '')}
+                    ${renderSection('摘要', data.summary ? formatJson(data.summary) : '')}
+                </div>
+            `;
+            scrollLogsToBottom();
+        }
+
+        function upsertReactStepCard(step) {
+            const container = ensureLogContainerReady();
+            const elementId = `react-step-${step.step}`;
+            let card = document.getElementById(elementId);
+            if (!card) {
+                card = document.createElement('div');
+                card.id = elementId;
+                card.className = 'react-step-card';
+                container.appendChild(card);
+            }
+
+            const duration = step.durationMs === null ? '' : ` · ${(step.durationMs / 1000).toFixed(2)}s`;
+            const toolCalls = step.toolCalls
+                .map(item => `${item.name}(${formatJson(item.arguments)})`)
+                .join('\n');
+            const toolResults = step.toolResults
+                .map(item => `${item.name}: ${item.success ? 'success' : 'failed'}${item.summary ? ' · ' + item.summary : ''}`)
+                .join('\n');
+            const perceptions = step.perceptions
+                .map(item => {
+                    const observations = (item.observations || []).join('\n');
+                    const anomalies = (item.anomalies || []).join('\n');
+                    return [observations, anomalies].filter(Boolean).join('\n');
+                })
+                .filter(Boolean)
+                .join('\n');
+            const fallbacks = step.fallbacks
+                .map(item => item.reason || formatJson(item))
+                .join('\n');
+
+            // 构建截图预览部分（支持VLM截图）
+            let screenshotSection = '';
+            if (step.screenshot) {
+                const flags = [];
+                if (step.screenshotInfo && step.screenshotInfo.includes('sensitive')) flags.push('敏感');
+                if (step.screenshotInfo && step.screenshotInfo.includes('fallback')) flags.push('降级');
+                screenshotSection = renderSection('截图预览', {
+                    src: step.screenshot,
+                    info: step.screenshotInfo,
+                    flags: flags
+                }, '', true);
+            }
+
+            // 构建VLM分析部分
+            let vlmSection = '';
+            if (step.vlmAnalysis) {
+                vlmSection = renderSection('VLM 分析', step.vlmAnalysis);
+            }
+
+            card.innerHTML = `
+                <div class="react-card-header" onclick="toggleStepCard('${elementId}')">
+                    <span class="react-card-title">Step ${step.step}${duration}</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span class="react-card-status ${step.status}">${escapeHtml(step.status)}</span>
+                        <span class="react-card-toggle">▶</span>
+                    </div>
+                </div>
+                <div class="react-card-body">
+                    ${step.thinking ? renderSection('思考过程', step.thinking) : ''}
+                    ${toolCalls ? renderSection('动作 / 工具调用', toolCalls) : ''}
+                    ${toolResults ? renderSection('执行结果', toolResults) : ''}
+                    ${screenshotSection}
+                    ${vlmSection}
+                    ${perceptions ? renderSection('感知观察', perceptions, step.error ? 'react-error' : '') : ''}
+                    ${fallbacks ? renderSection('降级 / 恢复', fallbacks, 'react-warning') : ''}
+                    ${step.error ? renderSection('错误', step.error, 'react-error') : ''}
+                </div>
+            `;
+            scrollLogsToBottom();
+        }
+
+        function toggleStepCard(cardId) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.classList.toggle('collapsed');
+            }
+        }
+
+        // 检查日志是否为重复的步骤内工具调用日志
+        function isDuplicateToolCallLog(message) {
+            const stepMatch = message.match(/\[Step (\d+)\]/);
+            const toolMatch = message.match(/(launch_app|click_element|input_text|swipe_screen|get_ui_tree)\(/);
+            
+            if (stepMatch && toolMatch) {
+                const stepNum = parseInt(stepMatch[1]);
+                const currentCount = stepToolCallCount.get(stepNum) || 0;
+                const expectedCount = reactSteps.has(stepNum) ? reactSteps.get(stepNum).toolCalls.length : 0;
+                
+                if (currentCount >= expectedCount) {
+                    stepToolCallCount.set(stepNum, currentCount + 1);
+                    return true;
+                }
+                stepToolCallCount.set(stepNum, currentCount + 1);
+            }
+            return false;
+        }
+
+        function addLog(type, message, skipDuplicateCheck = false) {
+            // 1. 检查是否为重复的工具调用日志
+            if (!skipDuplicateCheck && isDuplicateToolCallLog(message)) {
+                return;
+            }
+
+            // 2. 通用去重检查 - 增加时间窗口判断
+            if (!skipDuplicateCheck) {
+                const normalizedMsg = message.trim().replace(/\s+/g, '');
+                
+                // 跳过纯数字或无意义的消息
+                if (/^\d+$/.test(normalizedMsg)) {
+                    return;
+                }
+                
+                // 检查短时间内是否已经显示过相同消息（5秒内）
+                const now = Date.now();
+                const lastShown = recentLogTimestamps.get(normalizedMsg);
+                
+                if (lastShown && now - lastShown < 5000) {
+                    return;
+                }
+                
+                recentLogTimestamps.set(normalizedMsg, now);
+                
+                // 维护时间戳映射表，清理过期记录
+                recentLogTimestamps.forEach((timestamp, key) => {
+                    if (now - timestamp > 30000) {
+                        recentLogTimestamps.delete(key);
+                    }
+                });
+            }
+
+            const container = document.getElementById('logs-container');
+            if (!container) return; // SPA 切换后容器已被替换，直接退出避免 null 错误
+            const placeholder = container.querySelector('.log-placeholder');
+            if (placeholder) placeholder.remove();
+            const timestamp = new Date().toLocaleTimeString('zh-CN');
+            const logClass = `log-${type}`;
+            const logElement = document.createElement('div');
+            logElement.className = `${logClass} agent-log-entry`;
+
+            const timeElement = document.createElement('span');
+            timeElement.className = 'log-timestamp';
+            timeElement.textContent = `[${timestamp}]`;
+            logElement.appendChild(timeElement);
+            logElement.appendChild(document.createTextNode(message));
+
+            container.appendChild(logElement);
+            if (isTaskCompletionLog(message)) {
+                setTaskRunning(false);
+            }
+            scrollLogsToBottom();
+        }
+
+        function isTaskCompletionLog(message) {
+            const text = String(message || '');
+            const completionKeywords = [
+                '任务完成',
+                '任务成功',
+                '任务失败',
+                '执行任务时发生错误',
+                '任务执行失败',
+                '执行错误'
+            ];
+            return completionKeywords.some(keyword => text.includes(keyword));
+        }
+
+        function renderReactEvent(payload) {
+            const eventName = payload.event;
+            const data = payload.payload || {};
+
+            if (eventName === 'task_start' || eventName === 'task_end') {
+                upsertReactTaskCard(payload);
+                if (eventName === 'task_start') {
+                    setTaskRunning(true);
+                }
+                if (eventName === 'task_end') {
+                    setTaskRunning(false);
+                    updateGenerateScriptAvailability();
+                }
+                return;
+            }
+
+            if (eventName === 'task_analysis') {
+                addLog('info', `任务分析: ${data.reason || ''}`);
+                return;
+            }
+
+            const stepNumber = payload.step;
+            if (!stepNumber) {
+                addLog('info', formatJson(payload));
+                return;
+            }
+
+            const step = getOrCreateReactStep(stepNumber);
+            
+            // 对事件进行去重处理，避免重复渲染
+            const eventKey = `${eventName}_${JSON.stringify(data).slice(0, 100)}`;
+            const now = Date.now();
+            if (step.lastEventTime && now - step.lastEventTime < 2000) {
+                const lastKey = step.lastEventKey;
+                if (lastKey === eventKey) {
+                    return; // 2秒内相同事件不重复处理
+                }
+            }
+            step.lastEventTime = now;
+            step.lastEventKey = eventKey;
+            
+            if (eventName === 'thinking') {
+                step.thinking = data.content || '';
+            } else if (eventName === 'tool_call') {
+                // 检查是否已存在相同的工具调用
+                const exists = step.toolCalls.some(tc => 
+                    tc.name === data.name && JSON.stringify(tc.arguments) === JSON.stringify(data.arguments)
+                );
+                if (!exists) {
+                    step.toolCalls.push({ name: data.name, arguments: data.arguments });
+                }
+            } else if (eventName === 'tool_result') {
+                // 检查是否已存在相同的工具结果
+                const exists = step.toolResults.some(tr => 
+                    tr.name === data.name && tr.summary === data.summary
+                );
+                if (!exists) {
+                    step.toolResults.push({
+                        name: data.name,
+                        success: data.success,
+                        summary: data.summary
+                    });
+                }
+            } else if (eventName === 'perception') {
+                // 检查是否已存在相同的感知观察
+                const exists = step.perceptions.some(p => 
+                    JSON.stringify(p.observations) === JSON.stringify(data.observations || [])
+                );
+                if (!exists) {
+                    step.perceptions.push({
+                        observations: data.observations || [],
+                        anomalies: data.anomalies || [],
+                        recoverable: data.recoverable
+                    });
+                }
+            } else if (eventName === 'fallback') {
+                step.fallbacks.push(data);
+            } else if (eventName === 'step_end') {
+                step.status = data.success ? 'passed' : 'failed';
+                step.durationMs = data.duration_ms ?? null;
+                step.error = data.error || null;
+            } else if (eventName === 'vlm_screenshot') {
+                // VLM截图事件 - 将截图关联到步骤卡片中
+                if (data.screenshot) {
+                    const size = data.width && data.height ? `${data.width}x${data.height}` : '截图';
+                    const flags = [];
+                    if (data.is_sensitive) flags.push('sensitive');
+                    if (data.is_fallback) flags.push('fallback');
+                    step.screenshot = `data:image/png;base64,${data.screenshot}`;
+                    step.screenshotInfo = size;
+                }
+            } else if (eventName === 'vlm_analysis') {
+                // VLM分析结果事件
+                step.vlmAnalysis = data.content || '';
+            }
+
+            upsertReactStepCard(step);
+        }
+
+        function handleRealtimeEvent(rawData) {
+            try {
+                const payload = JSON.parse(rawData);
+                if (payload.type === 'react_event') {
+                    renderReactEvent(payload);
+                    return true;
+                }
+                if (payload.type === 'screenshot_preview') {
+                    // 如果截图有step信息，尝试关联到步骤卡片
+                    if (payload.step && reactSteps.has(payload.step)) {
+                        const step = reactSteps.get(payload.step);
+                        const size = payload.width && payload.height ? `${payload.width}x${payload.height}` : '截图';
+                        const flags = [];
+                        if (payload.is_sensitive) flags.push('敏感');
+                        if (payload.is_fallback) flags.push('降级');
+                        step.screenshot = `data:image/png;base64,${payload.screenshot}`;
+                        step.screenshotInfo = size;
+                        upsertReactStepCard(step);
+                    } else {
+                        // 没有关联的步骤，作为普通日志显示
+                        addScreenshotPreview(payload);
+                    }
+                    return true;
+                }
+            } catch (e) {
+                return false;
+            }
+            return false;
+        }
+
+        function scrollLogsToBottom() {
+            const container = document.getElementById('logs-container');
+            if (!container) return; // SPA 切换后容器已被替换，避免 null 错误
+            const scroll = () => {
+                container.scrollTop = container.scrollHeight;
+            };
+            if (window.requestAnimationFrame) {
+                requestAnimationFrame(scroll);
+            } else {
+                scroll();
+            }
+        }
+
+        // 消息队列，确保所有日志都能正确显示
+        const AGENT_RELATED_LOG_PATTERNS = [
+            /\[ReActAgent\]/i,
+            /\[启动\]/i,
+            /\[任务分析\]/i,
+            /\[Step \d+\]/i,
+            /\[思考\]/i,
+            /\[工具执行\]/i,
+            /\[感知\]/i,
+            /\[结束\]/i,
+            /\[降级\]/i,
+            /\[ReAct模式\]/i,
+            /\[主要方案\]/i,
+            /\[降级方案\]/i,
+            /\[降级成功\]/i,
+            /\[降级失败\]/i,
+            /\[任务失败\]/i,
+            /click_element/i,
+            /launch_app/i,
+            /input_text/i,
+            /swipe_screen/i,
+            /UI tree/i,
+            /VLM 降级/i,
+            /writing-skills/i,
+            /executing-plans/i,
+            /点击追踪/i,
+            // 新增：捕获任务开始和结束的日志
+            /开始执行任务/i,
+            /任务完成/i,
+            /任务成功/i,
+            /\[记忆\]/i,
+            /\[总结\]/i,
+            /\[复盘\]/i
+        ];
+
+        const IGNORED_AGENT_LOG_PATTERNS = [
+            /^size=\d+$/i,
+            /Keyframe packet received/i,
+            /Sending screen packet/i,
+            /Configuration packet received/i,
+            /Data packet received/i,
+            /screen packet/i,
+            /device-screen/i,
+            /screen websocket/i,
+            /scrcpy/i,
+            /video metadata/i,
+            /packet iterator/i,
+            /HTTP Request:/i,
+            /uiautomator dump/i,
+            /dumpsys/i,
+            /bash arg:/i,
+            /Events injected:/i,
+            /Network stats/i,
+            /No such file or directory/i,
+            /UI XML/i,
+            /Started server process/i,
+            /Waiting for application startup/i,
+            /日志队列处理任务已启动/i,
+            /Application startup complete/i,
+            /connection open/i,
+            /Reset stream state/i,
+            /Checking device/i,
+            /Device .+ is available/i,
+            /Removing ADB port forward/i,
+            /Waiting for port/i,
+            /available for binding/i,
+            /became available/i,
+            /successfully released/i,
+            /Pushing server to device/i,
+            /Setting up port forwarding/i,
+            /Server process poll/i,
+            /Connecting to TCP socket/i,
+            /Successfully connected/i,
+            /^应用名称 '.+' 映射到包名:/i,
+            /^尝试使用 '.+' 启动应用/i,
+            /^'.+' 输出:/i,
+            /^应用 '.+' 启动成功 \(使用 .+\)/i,
+            /^未能获取有效的UI XML/i,
+            /^获取到的内容不是有效的XML:/i,
+            /\b(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+(https?:\/\/\S+)?\/api\//i,
+            /uvicorn\.access/i,
+            /\d+\.\d+\.\d+\.\d+:\d+\s+-\s+"/,
+            // 前端错误日志过滤
+            /jinja2\.exceptions/i,
+            /UndefinedError/i,
+            /TemplateResponse/i,
+            /starlette\./i,
+            /fastapi\./i,
+            /File ".*\.py"/i,
+            /raise exc/i,
+            /async def/i,
+            /await self\./i,
+            /^  File "/i,
+            /^    /i,
+            /^[^\s]+Error:/i,
+            /Exception:/i,
+            /line \d+/i
+        ];
+
+        function isBase64ResponseLog(message) {
+            const text = String(message || '').trim();
+            if (!text) return false;
+            const compactText = text.replace(/\s+/g, '');
+            return text.startsWith('data:image/')
+                || /^[A-Za-z0-9+/=\s]{512,}$/.test(text)
+                || /"(image_base64|screenshot_base64|screenshot|base64_data)"\s*:/i.test(text)
+                || /"(image_base64|screenshot_base64|screenshot|base64_data)":/i.test(compactText);
+        }
+
+        function shouldShowAgentLog(message) {
+            const text = String(message || '').trim();
+            if (!text) return false;
+            
+            // Agent相关日志白名单 - 这些日志必须显示，优先检查
+            if (AGENT_RELATED_LOG_PATTERNS.some(pattern => pattern.test(text))) {
+                return true;
+            }
+            
+            if (isBase64ResponseLog(text)) return false;
+            if (text.includes('"type": "react_event"') || text.includes('"type":"react_event"')) return false;
+            return !IGNORED_AGENT_LOG_PATTERNS.some(pattern => pattern.test(text));
+        }
+
+        let logQueue = [];
+        let isProcessingLog = false;
+
+        function processLogQueue() {
+            if (isProcessingLog || logQueue.length === 0) return;
+            isProcessingLog = true;
+            
+            const msg = logQueue.shift();
+            if (handleRealtimeEvent(msg)) {
+                isProcessingLog = false;
+                if (logQueue.length > 0) {
+                    setTimeout(processLogQueue, 10);
+                }
+                return;
+            }
+            addLog('info', msg);
+            
+            isProcessingLog = false;
+            // 继续处理队列中的下一条消息
+            if (logQueue.length > 0) {
+                setTimeout(processLogQueue, 10);
+            }
+        }
+
+        function queueLog(msg) {
+            logQueue.push(msg);
+            processLogQueue();
+        }
+
+        function clearLogs() {
+            document.getElementById('logs-container').innerHTML = '<div class="log-info log-placeholder">日志已清空</div>';
+            scrollLogsToBottom();
+        }
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const wsUrl = `${protocol}://${window.location.host}/ws/logs`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                addLog('success', 'WebSocket连接已建立');
+            };
+
+            ws.onmessage = function(event) {
+                // 使用队列处理日志，确保所有日志都能显示
+                const data = event.data;
+                if (handleRealtimeEvent(data)) return;
+                // 如果是多行日志，分割处理
+                if (data.includes('\n')) {
+                    const lines = data.split('\n');
+                    lines.forEach(line => {
+                        const cleanedLine = line.replace(/\r$/, '');
+                        if (shouldShowAgentLog(cleanedLine)) queueLog(cleanedLine);
+                    });
+                } else {
+                    const cleanedData = data.replace(/\r$/, '');
+                    if (shouldShowAgentLog(cleanedData)) queueLog(cleanedData);
+                }
+            };
+
+            ws.onerror = function(error) {
+                addLog('error', 'WebSocket错误');
+            };
+
+            ws.onclose = function() {
+                // 页面已被卸载（SPA 切换走），不再重连避免访问已替换的 DOM
+                if (window.__agentUnmounted) return;
+                addLog('warning', 'WebSocket连接已关闭，5秒后重连...');
+                setTimeout(connectWebSocket, 5000);
+            };
+        }
+
+        let scriptPreviewContent = null;
+        let scriptStepResults = [];  // 修改为数组，累积所有步骤
+        let scriptTaskText = '';
+        const RUN_BUTTON_IDLE_HTML = '<i class="fa fa-play mr-1.5"></i>执行任务';
+        const RUN_BUTTON_RUNNING_HTML = '<i class="fa fa-stop mr-1.5"></i>中止任务';
+        const SAVE_BUTTON_IDLE_HTML = '保存';
+        const SAVE_BUTTON_LOADING_HTML = '<i class="fa fa-spinner fa-spin mr-1.5"></i>保存中...';
+        const REGENERATE_BUTTON_IDLE_HTML = '重新生成';
+        const REGENERATE_BUTTON_LOADING_HTML = '<i class="fa fa-spinner fa-spin mr-1.5"></i>生成中...';
+
+        function updateGenerateScriptAvailability() {
+            const generateBtn = document.getElementById('generate-script-btn');
+            if (!generateBtn) return;
+            generateBtn.style.display = scriptStepResults.length > 0 ? 'inline-block' : 'none';
+        }
+
+        function setScriptSaveLoading(isLoading) {
+            const saveBtn = document.getElementById('script-save-btn');
+            if (!saveBtn) return;
+            saveBtn.disabled = isLoading;
+            saveBtn.innerHTML = isLoading ? SAVE_BUTTON_LOADING_HTML : SAVE_BUTTON_IDLE_HTML;
+        }
+
+        function setScriptRegenerateLoading(isLoading) {
+            const regenerateBtn = document.getElementById('script-regenerate-btn');
+            if (!regenerateBtn) return;
+            regenerateBtn.disabled = isLoading;
+            regenerateBtn.innerHTML = isLoading ? REGENERATE_BUTTON_LOADING_HTML : REGENERATE_BUTTON_IDLE_HTML;
+        }
+
+        function setTaskRunning(isRunning) {
+            const runBtn = document.getElementById('run-btn');
+            if (!runBtn) return;
+            if (isRunning) {
+                runBtn.disabled = false;
+                runBtn.innerHTML = RUN_BUTTON_RUNNING_HTML;
+                runBtn.classList.remove('btn-primary');
+                runBtn.classList.add('bg-red-600', 'hover:bg-red-500');
+                runBtn.onclick = cancelCurrentTask;
+            } else {
+                runBtn.disabled = false;
+                runBtn.innerHTML = RUN_BUTTON_IDLE_HTML;
+                runBtn.classList.remove('bg-red-600', 'hover:bg-red-500');
+                runBtn.classList.add('btn-primary');
+                runBtn.onclick = runTask;
+            }
+        }
+
+        async function cancelCurrentTask() {
+            const runBtn = document.getElementById('run-btn');
+            if (!runBtn) return;
+            runBtn.disabled = true;
+            runBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1.5"></i>正在中止...';
+            try {
+                const resp = await fetch('/api/tasks/cancel-current', { method: 'POST' });
+                const result = await resp.json();
+                if (result.success) {
+                    addLog('success', '任务已中止');
+                } else {
+                    addLog('warning', result.message || '中止失败');
+                }
+            } catch (err) {
+                addLog('error', `中止请求失败: ${err.message}`);
+            }
+            setTaskRunning(false);
+        }
+
+        function openScriptModal() {
+            // 如果没有脚本预览但有步骤数据，先重新生成脚本
+            if (!scriptPreviewContent || scriptPreviewContent === "-- 待生成 --") {
+                if (!scriptStepResults || scriptStepResults.length === 0) {
+                    addLog('warning', '缺少步骤数据，无法生成脚本');
+                    return;
+                }
+                
+                // 先调用重新生成接口
+                fetch('/api/scripts/preview-from-agent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        task_text: scriptTaskText,
+                        step_results: scriptStepResults
+                    })
+                }).then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        scriptPreviewContent = result.content;
+                        showScriptModal();
+                    } else {
+                        addLog('error', `生成脚本失败: ${result.error || '未知错误'}`);
+                    }
+                }).catch(e => {
+                    addLog('error', `请求失败: ${e.message}`);
+                });
+            } else {
+                showScriptModal();
+            }
+        }
+        
+        function showScriptModal() {
+            const defaultName = scriptTaskText.slice(0, 20) + '_脚本';
+            document.getElementById('script-task-name').textContent = scriptTaskText.slice(0, 30);
+            document.getElementById('script-name-input').value = defaultName;
+            document.getElementById('script-content-editor').value = scriptPreviewContent;
+            loadProjectsToSelector();
+            document.getElementById('script-modal').classList.add('show');
+        }
+
+        function getScriptProjectId() {
+            const val = document.getElementById('script-project-select').value;
+            return val ? parseInt(val) : null;
+        }
+
+        async function loadProjectsToSelector() {
+            try {
+                const response = await fetch('/api/projects');
+                const data = await response.json();
+                const projects = data.items || [];
+                const select = document.getElementById('script-project-select');
+                select.innerHTML = '<option value="">不关联项目</option>';
+                projects.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name;
+                    select.appendChild(opt);
+                });
+            } catch (error) {
+                console.error('Failed to load projects:', error);
+            }
+        }
+
+        function closeScriptModal() {
+            document.getElementById('script-modal').classList.remove('show');
+        }
+
+        async function saveScript() {
+            const projectId = getScriptProjectId();
+            if (!projectId) {
+                UIUtils.warning('提示', '请先选择所属项目');
+                return;
+            }
+            const name = document.getElementById('script-name-input').value.trim();
+            const content = document.getElementById('script-content-editor').value;
+            if (!name || !content) {
+                alert('脚本名称和内容不能为空');
+                return;
+            }
+            
+            setScriptSaveLoading(true);  // 显示loading状态
+            
+            try {
+                const response = await fetch('/api/scripts/save-from-preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, content, system_os: selectedDeviceSystem, project_id: getScriptProjectId() })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    let message = `脚本已保存（ID: ${result.script_id}）`;
+                    if (result.final_name && result.final_name !== name) {
+                        message += `（名称已调整为: ${result.final_name}）`;
+                    }
+                    addLog('success', message);
+                    closeScriptModal();
+                } else {
+                    if (result.is_duplicate) {
+                        if (result.duplicate_type === 'content') {
+                            addLog('warning', `检测到重复脚本，已存在相同内容的脚本(ID: ${result.script_id})`);
+                            // 询问用户是否覆盖或使用现有脚本
+                            if (confirm(`检测到内容相同的脚本(ID: ${result.script_id})，是否仍要保存为新脚本？`)) {
+                                saveScriptWithDuplicateAllowed(name, content);
+                                return;  // 保持loading，让saveScriptWithDuplicateAllowed处理
+                            }
+                        } else {
+                            addLog('warning', `脚本名称已存在，已自动调整名称`);
+                            saveScript(); // 重新保存（名称已被后端调整）
+                            return;  // 保持loading，让递归调用处理
+                        }
+                    } else {
+                        addLog('error', `保存失败: ${result.message || '未知错误'}`);
+                    }
+                }
+            } catch (e) {
+                addLog('error', `保存请求失败: ${e.message}`);
+            } finally {
+                setScriptSaveLoading(false);  // 恢复按钮状态
+            }
+        }
+
+        async function saveScriptWithDuplicateAllowed(name, content) {
+            setScriptSaveLoading(true);  // 显示loading状态
+            
+            try {
+                const response = await fetch('/api/scripts/save-from-preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, content, system_os: selectedDeviceSystem, allow_duplicate: true, project_id: getScriptProjectId() })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    addLog('success', `脚本已保存（ID: ${result.script_id}）`);
+                    closeScriptModal();
+                } else {
+                    addLog('error', `保存失败: ${result.message || '未知错误'}`);
+                }
+            } catch (e) {
+                addLog('error', `保存请求失败: ${e.message}`);
+            } finally {
+                setScriptSaveLoading(false);  // 恢复按钮状态
+            }
+        }
+
+        async function regenerateScript() {
+            if (!scriptStepResults || scriptStepResults.length === 0) {
+                addLog('warning', '缺少步骤数据，无法重新生成');
+                return;
+            }
+            addLog('info', '重新生成脚本...');
+            setScriptRegenerateLoading(true);  // 显示loading状态
+            try {
+                const response = await fetch('/api/scripts/preview-from-agent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        task_text: scriptTaskText,
+                        step_results: scriptStepResults
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    scriptPreviewContent = result.content;
+                    document.getElementById('script-content-editor').value = result.content;
+                    addLog('success', '脚本已重新生成');
+                } else {
+                    addLog('error', `重新生成失败: ${result.error || '未知错误'}`);
+                }
+            } catch (e) {
+                addLog('error', `请求失败: ${e.message}`);
+            } finally {
+                setScriptRegenerateLoading(false);  // 恢复按钮状态
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDevices();
+            connectWebSocket();
+
+            // 注册 SPA 卸载钩子：切换菜单时关闭 ws，避免继续访问已替换的 DOM
+            if (window.registerUnmount) {
+                window.registerUnmount(() => {
+                    window.__agentUnmounted = true;
+                    try {
+                        if (ws) {
+                            ws.onclose = null; // 阻止自动重连
+                            ws.onerror = null;
+                            ws.onmessage = null;
+                            ws.onopen = null;
+                            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+                                ws.close();
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Agent ws cleanup error:', e);
+                    }
+                });
+            }
+
+            const taskInput = document.getElementById('task-input');
+            if (taskInput) {
+                taskInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        const runBtn = document.getElementById('run-btn');
+                        // Only trigger runTask when button is in "Run" mode (not "Stop" mode)
+                        if (runBtn && !runBtn.classList.contains('bg-red-600')) {
+                            runTask();
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+
+    <script src="/static/js/scrcpy-player.js?v=20260702-screen-fit-contained"></script>
+    <script>
+        let scrcpyPlayer = null;
+
+        function initScrcpyPlayer() {
+            const canvas = document.getElementById('screen-canvas');
+            const container = document.getElementById('screen-container');
+            if (!canvas || !container) return;
+
+            scrcpyPlayer = new ScrcpyPlayer({
+                canvas: canvas,
+                container: container,
+                enableControl: true,
+                onStatusChange: (status) => {
+                    const statusEl = document.getElementById('screen-status');
+                    const dotEl = document.getElementById('screen-status-dot');
+                    const placeholder = document.getElementById('screen-placeholder');
+                    if (!statusEl || !dotEl) return;
+
+                    const statusMap = {
+                        'disconnected': { text: '未连接', color: 'bg-gray-500', showCanvas: false },
+                        'connecting': { text: '连接中...', color: 'bg-yellow-400', showCanvas: false },
+                        'streaming': { text: 'scrcpy 实时', color: 'bg-green-400', showCanvas: true },
+                        'polling': { text: '轮询模式', color: 'bg-yellow-400', showCanvas: true },
+                        'error': { text: '连接错误', color: 'bg-red-400', showCanvas: false },
+                    };
+                    const s = statusMap[status] || statusMap['disconnected'];
+                    statusEl.textContent = s.text;
+                    dotEl.className = `absolute top-3 left-3 w-2.5 h-2.5 rounded-full ${s.color} z-20`;
+                    if (placeholder) placeholder.style.display = s.showCanvas ? 'none' : '';
+                    canvas.classList.toggle('hidden', !s.showCanvas);
+                    canvas.style.display = s.showCanvas ? 'block' : 'none';
+                },
+                onError: (error) => {
+                    addLog('error', `scrcpy error: ${error.type} - ${error.message || ''}`);
+                },
+                onFrameDecoded: (width, height) => {
+                    // 解析日志已移至后台，前台不再显示
+                },
+            });
+
+            // 不自动连接设备，等待用户手动选择
+        }
+
+        const origSelectDevice = window.selectDevice;
+        window.selectDevice = async function(deviceId, event) {
+            if (origSelectDevice) await origSelectDevice(deviceId, event);
+            if (scrcpyPlayer) {
+                scrcpyPlayer.connectDevice(deviceId);
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', initScrcpyPlayer);
+    </script>
+    <!-- uiauto.dev 启动按钮逻辑 -->
+    <script>
+        (function () {
+            const btn = document.getElementById('uiauto-dev-btn');
+            const btnText = document.getElementById('uiauto-dev-btn-text');
+            const btnIcon = btn ? btn.querySelector('i') : null;
+            if (!btn || !btnText) return;
+
+            function updateButtonState(running) {
+                if (running) {
+                    btnText.textContent = '停止 uiauto.dev';
+                    btn.disabled = false;
+                    btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    btn.classList.add('bg-red-600', 'hover:bg-red-700');
+                    if (btnIcon) btnIcon.className = 'fa fa-stop mr-1';
+                } else {
+                    btnText.textContent = '启动 uiauto.dev';
+                    btn.disabled = false;
+                    btn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                    if (btnIcon) btnIcon.className = 'fa fa-rocket mr-1';
+                }
+            }
+
+            async function refreshStatus() {
+                try {
+                    const res = await fetch('/api/agent/uiauto-dev/status');
+                    const data = await res.json();
+                    updateButtonState(!!data.running);
+                } catch (e) {
+                    // 忽略状态查询失败
+                }
+            }
+
+            btn.addEventListener('click', async () => {
+                // 先查当前状态决定是启动还是停止
+                let running = false;
+                try {
+                    const sres = await fetch('/api/agent/uiauto-dev/status');
+                    const sdata = await sres.json();
+                    running = !!sdata.running;
+                } catch (e) {
+                    // 忽略
+                }
+
+                if (running) {
+                    // 停止
+                    btnText.textContent = '停止中...';
+                    btn.disabled = true;
+                    try {
+                        const res = await fetch('/api/agent/uiauto-dev/stop', { method: 'POST' });
+                        const data = await res.json();
+                        if (res.ok && data.success) {
+                            showToast('uiauto.dev 已停止', 'success');
+                            updateButtonState(false);
+                        } else {
+                            showToast(data.detail || '停止失败', 'error');
+                            updateButtonState(true);
+                        }
+                    } catch (e) {
+                        showToast('网络错误：' + e.message, 'error');
+                        updateButtonState(true);
+                    }
+                    return;
+                }
+
+                // 启动
+                btnText.textContent = '启动中...';
+                btn.disabled = true;
+                try {
+                    const res = await fetch('/api/agent/uiauto-dev/start', { method: 'POST' });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        showToast('uiauto.dev 启动成功', 'success');
+                        updateButtonState(true);
+                    } else {
+                        // 未安装等错误，toast 显示 detail（如 pip install uiautodev）
+                        showToast(data.detail || data.message || '启动失败', 'error', 5000);
+                        updateButtonState(false);
+                    }
+                } catch (e) {
+                    showToast('网络错误：' + e.message, 'error');
+                    updateButtonState(false);
+                }
+            });
+
+            // 页面加载时初始化按钮状态
+            refreshStatus();
+        })();
+    </script>
+    <!-- 脚本预览弹窗 -->
+    <div id="script-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 800px; width: 90%;">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-bold text-gray-800">脚本预览 - <span id="script-task-name"></span></h2>
+                <button onclick="closeScriptModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times text-lg"></i>
+                </button>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-700 mb-1.5">所属项目</label>
+                <select id="script-project-select" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm">
+                    <option value="">请选择项目</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-700 mb-1.5">脚本名称</label>
+                <input type="text" id="script-name-input" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm">
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-700 mb-1.5">脚本内容（可编辑）</label>
+                <textarea id="script-content-editor" style="width:100%; height:400px; font-family: monospace; font-size: 13px; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; resize: vertical;"></textarea>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button id="script-regenerate-btn" class="px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-all text-sm" onclick="regenerateScript()">重新生成</button>
+                <button class="px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-all text-sm" onclick="closeScriptModal()">取消</button>
+                <button id="script-save-btn" class="btn-primary text-white px-4 py-2 rounded-lg font-medium text-sm" onclick="saveScript()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+    <script>
+        // 自定义 toast 封装
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const colors = {
+                info: 'bg-gray-800',
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                warning: 'bg-yellow-600',
+            };
+            const icons = {
+                info: 'fa-info-circle',
+                success: 'fa-check-circle',
+                error: 'fa-times-circle',
+                warning: 'fa-exclamation-triangle',
+            };
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto flex items-center px-4 py-2.5 rounded-lg shadow-lg text-white text-sm ${colors[type] || colors.info} opacity-0 transition-opacity duration-300 max-w-md`;
+            toast.innerHTML = `<i class="fa ${icons[type] || icons.info} mr-2"></i><span class="break-all"></span>`;
+            toast.querySelector('span').textContent = message;
+            container.appendChild(toast);
+            // 触发淡入
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0');
+            });
+            // 自动移除
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+    </script>
+</body>
+</html>

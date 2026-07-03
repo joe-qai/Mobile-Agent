@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配置管理 - Agent Platform</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <script src="/static/js/ui-utils.js"></script>
+    <script src="/static/js/common.js"></script>
+    <style>
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        .btn-test {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-test:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            box-shadow: 0 10px 40px rgba(16, 185, 129, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        .tab-button { 
+            padding: 10px 20px; 
+            border-radius: 12px; 
+            cursor: pointer; 
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-button.active { 
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); 
+            color: white; 
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+        
+        .tab-button:not(.active) { 
+            background: #f1f5f9; 
+            color: #64748b; 
+        }
+        
+        .tab-button:not(.active):hover { 
+            background: #e2e8f0; 
+        }
+        
+        .test-success {
+            background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+            color: #166534;
+        }
+        
+        .test-error {
+            background: linear-gradient(135deg, #ffe4e6, #fecdd3);
+            color: #9f1239;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50 min-h-screen">
+    <div class="flex">
+        <!-- 侧边栏 -->
+        {% include "partials/sidebar.html" %}
+        
+        <!-- 主内容区 -->
+        <main id="main-content" class="ml-56 p-8 flex-1 min-h-screen transition-all duration-300">
+            <div class="flex items-center justify-between mb-8">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">配置管理</h1>
+                    <p class="text-gray-600 mt-2">管理系统配置参数</p>
+                </div>
+            </div>
+                
+            <!-- 标签页 -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                <div class="flex space-x-3 mb-6">
+                    <div class="tab-button active" onclick="showTab('llm')">
+                        <i class="fa fa-brain mr-2"></i>LLM配置
+                    </div>
+                    <div class="tab-button" onclick="showTab('vlm')">
+                        <i class="fa fa-eye mr-2"></i>VLM配置
+                    </div>
+                    <div class="tab-button" onclick="showTab('adb')">
+                        <i class="fa fa-mobile mr-2"></i>ADB配置
+                    </div>
+                    <div class="tab-button" onclick="showTab('feishu')">
+                        <i class="fa fa-bell mr-2"></i>飞书通知
+                    </div>
+                    <div class="tab-button" onclick="showTab('notification-rules')">
+                        <i class="fa fa-list-alt mr-2"></i>通知规则
+                    </div>
+                </div>
+                
+
+
+                <!-- LLM配置 -->
+                <div id="tab-llm" class="tab-content">
+                    <form id="llm-form" onsubmit="saveSettings(event, 'llm')">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">协议类型</label>
+                                <select id="llm-protocol" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <option value="openapi">OpenAPI</option>
+                                    <option value="anthropic">Anthropic</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">API地址</label>
+                                <input type="text" id="llm-url" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="https://api.example.com">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">API密钥</label>
+                                <div class="relative">
+                                    <input type="password" id="llm-apikey" class="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="sk-xxxxxxxx">
+                                    <button type="button" id="llm-apikey-toggle" onclick="togglePassword('llm-apikey', 'llm-apikey-toggle')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                        <i class="fa fa-eye-slash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">模型名称</label>
+                                <input type="text" id="llm-model" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="glm-4">
+                            </div>
+                        </div>
+                        <div class="flex justify-end mt-8 gap-4">
+                            <button type="button" onclick="testLLMConnection()" class="btn-test text-white px-6 py-3 rounded-xl font-semibold flex items-center shadow-lg">
+                                <i class="fa fa-plug mr-2"></i>测试连接
+                            </button>
+                            <button id="save-btn-llm" type="submit" class="btn-primary text-white px-6 py-3 rounded-xl font-semibold flex items-center shadow-lg">
+                                <i class="fa fa-save mr-2"></i>保存配置
+                            </button>
+                        </div>
+                        <div id="test-result-llm" class="mt-6 p-4 rounded-xl hidden"></div>
+                    </form>
+                </div>
+                
+                <!-- ADB配置 -->
+                <div id="tab-adb" class="tab-content hidden">
+                    <form id="adb-form" onsubmit="saveSettings(event, 'adb')">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">ADB路径</label>
+                                <input type="text" id="adb-path" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="adb">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">连接超时(秒)</label>
+                                <input type="number" id="adb-timeout" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="30">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">端口号</label>
+                                <input type="number" id="adb-port" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="5037">
+                            </div>
+                        </div>
+                        <div class="flex justify-end mt-8 gap-4">
+                            <button type="button" onclick="testADBConnection()" class="btn-test text-white px-6 py-3 rounded-xl font-semibold flex items-center shadow-lg">
+                                <i class="fa fa-plug mr-2"></i>测试连接
+                            </button>
+                            <button id="save-btn-adb" type="submit" class="btn-primary text-white px-6 py-3 rounded-xl font-semibold flex items-center shadow-lg">
+                                <i class="fa fa-save mr-2"></i>保存配置
+                            </button>
+                        </div>
+                        <div id="test-result-adb" class="mt-6 p-4 rounded-xl hidden"></div>
+                    </form>
+                </div>
+                
+                <!-- VLM配置 -->
+                <div id="tab-vlm" class="tab-content hidden">
+                    <form id="vlm-form" onsubmit="saveSettings(event, 'vlm')">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">协议类型</label>
+                                <select id="vlm-protocol" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <option value="openapi">OpenAPI</option>
+                                    <option value="local">本地部署</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">API地址</label>
+                                <input type="text" id="vlm-url" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="https://api.example.com/vlm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">API密钥</label>
+                                <div class="relative">
+                                    <input type="password" id="vlm-apikey" class="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="sk-xxxxxxxx">
+                                    <button type="button" id="vlm-apikey-toggle" onclick="togglePassword('vlm-apikey', 'vlm-apikey-toggle')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                        <i class="fa fa-eye-slash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">模型名称</label>
+                                <input type="text" id="vlm-model" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="vlm-model">
+                            </div>
+                        </div>
+                        <div class="flex justify-end mt-8 gap-4">
+                            <button type="button" onclick="testVLMConnection()" class="btn-test text-white px-6 py-3 rounded-xl font-semibold flex items-center shadow-lg">
+                                <i class="fa fa-plug mr-2"></i>测试连接
+                            </button>
+                            <button id="save-btn-vlm" type="submit" class="btn-primary text-white px-6 py-3 rounded-xl font-semibold flex items-center shadow-lg">
+                                <i class="fa fa-save mr-2"></i>保存配置
+                            </button>
+                        </div>
+                        <div id="test-result-vlm" class="mt-6 p-4 rounded-xl hidden"></div>
+                    </form>
+                </div>
+                
+                <!-- 飞书通知配置 -->
+                <div id="tab-feishu" class="tab-content hidden">
+                    <form id="feishu-form" onsubmit="saveSettings(event, 'feishu')">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Webhook地址</label>
+                                <input type="text" id="feishu-webhook" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxx">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">是否启用</label>
+                                <select id="feishu-enabled" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <option value="true">启用</option>
+                                    <option value="false">禁用</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex justify-end mt-8 gap-4">
+                            <button type="button" onclick="testNotificationChannel('feishu')" class="btn-test text-white px-6 py-3 rounded-xl font-semibold flex items-center shadow-lg">
+                                <i class="fa fa-plug mr-2"></i>测试通知
+                            </button>
+                            <button id="save-btn-feishu" type="submit" class="btn-primary text-white px-6 py-3 rounded-xl font-semibold flex items-center shadow-lg">
+                                <i class="fa fa-save mr-2"></i>保存配置
+                            </button>
+                        </div>
+                        <div id="test-result-feishu" class="mt-6 p-4 rounded-xl hidden"></div>
+                    </form>
+                </div>
+
+                <!-- 通知规则管理 -->
+                <div id="tab-notification-rules" class="tab-content hidden">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-lg font-semibold text-gray-800">通知规则列表</h2>
+                        <button onclick="showAddRuleModal()" class="btn-primary text-white px-5 py-2.5 rounded-xl font-semibold flex items-center shadow-lg">
+                            <i class="fa fa-plus mr-2"></i>添加规则
+                        </button>
+                    </div>
+                    <div id="rules-table-container" class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="bg-gray-50 border-b border-gray-200">
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">规则名称</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">事件类型</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">条件</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">通知通道</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">优先级</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">状态</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rules-tbody">
+                                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+
+                <!-- 添加/编辑规则弹窗 -->
+                <div id="rule-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 id="rule-modal-title" class="text-lg font-semibold text-gray-800">添加通知规则</h3>
+                            <button onclick="closeRuleModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                                <i class="fa fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        <form id="rule-form" onsubmit="saveRule(event)">
+                            <input type="hidden" id="rule-id" value="">
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">规则名称</label>
+                                    <input type="text" id="rule-name" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="如: 脚本失败通知" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">事件类型</label>
+                                    <select id="rule-event-type" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                                        <option value="task_failed">任务失败</option>
+                                        <option value="task_completed">任务完成</option>
+                                        <option value="compat_completed">兼容性测试完成</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">匹配条件</label>
+                                    <div class="space-y-2">
+                                        <div class="flex items-center gap-3">
+                                            <select id="rule-condition-key" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                                                <option value="">无条件</option>
+                                                <option value="task_type">任务类型(task_type)</option>
+                                                <option value="role">角色(role)</option>
+                                            </select>
+                                            <input type="text" id="rule-condition-value" class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="值(如: script, child)">
+                                        </div>
+                                        <p class="text-xs text-gray-500">不选择条件键则匹配该事件类型的所有事件</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">通知通道</label>
+                                    <div class="flex items-center gap-4">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" id="rule-channel-feishu" value="feishu" checked class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                                            <span class="text-sm text-gray-700">飞书</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer opacity-50" title="暂未实现">
+                                            <input type="checkbox" id="rule-channel-dingtalk" value="dingtalk" disabled class="w-4 h-4 text-gray-400 rounded">
+                                            <span class="text-sm text-gray-400">钉钉(预留)</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer opacity-50" title="暂未实现">
+                                            <input type="checkbox" id="rule-channel-wecom" value="wecom" disabled class="w-4 h-4 text-gray-400 rounded">
+                                            <span class="text-sm text-gray-400">企微(预留)</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer opacity-50" title="暂未实现">
+                                            <input type="checkbox" id="rule-channel-email" value="email" disabled class="w-4 h-4 text-gray-400 rounded">
+                                            <span class="text-sm text-gray-400">邮件(预留)</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">优先级（数字越小优先匹配）</label>
+                                    <input type="number" id="rule-priority" value="10" min="1" max="100" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                </div>
+                                <div>
+                                    <label class="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" id="rule-enabled" checked class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                                        <span class="text-sm font-semibold text-gray-700">启用此规则</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="flex justify-end mt-6 gap-3">
+                                <button type="button" onclick="closeRuleModal()" class="px-5 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">取消</button>
+                                <button type="submit" class="btn-primary text-white px-5 py-2.5 rounded-xl font-semibold flex items-center shadow-lg">
+                                    <i class="fa fa-save mr-2"></i>保存规则
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            PageInit.init();
+        });
+
+        const EVENT_TYPE_LABELS = {
+            'task_failed': '任务失败',
+            'task_completed': '任务完成',
+            'compat_completed': '兼容性测试完成',
+        };
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+
+                const llm = settings.llm || {};
+                document.getElementById('llm-protocol').value = llm.protocol || 'openapi';
+                document.getElementById('llm-url').value = llm.url || '';
+                document.getElementById('llm-apikey').value = llm.apikey || '';
+                document.getElementById('llm-model').value = llm.model || '';
+
+                const vlm = settings.vlm || {};
+                document.getElementById('vlm-protocol').value = vlm.protocol || 'openapi';
+                document.getElementById('vlm-url').value = vlm.url || '';
+                document.getElementById('vlm-apikey').value = vlm.apikey || '';
+                document.getElementById('vlm-model').value = vlm.model || '';
+
+                const adb = settings.adb || {};
+                document.getElementById('adb-path').value = adb.path || 'adb';
+                document.getElementById('adb-timeout').value = adb.timeout || '30';
+                document.getElementById('adb-port').value = adb.port || '5037';
+
+                const feishu = settings.feishu || {};
+                document.getElementById('feishu-webhook').value = feishu.webhook || '';
+                document.getElementById('feishu-enabled').value = feishu.enabled ? 'true' : 'false';
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+            }
+        }
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+            if (tabName === 'notification-rules') {
+                loadNotificationRules();
+            }
+        }
+        
+        async function saveSettings(event, type) {
+            event.preventDefault();
+            
+            // 获取对应的保存按钮并设置loading状态
+            const saveBtn = document.getElementById(`save-btn-${type}`);
+            const originalText = saveBtn.innerHTML;
+            
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>保存中...';
+            
+            let data = {};
+            
+            if (type === 'llm') {
+                data = {
+                    llm: {
+                        protocol: document.getElementById('llm-protocol').value,
+                        url: document.getElementById('llm-url').value,
+                        apikey: document.getElementById('llm-apikey').value,
+                        model: document.getElementById('llm-model').value
+                    }
+                };
+            } else if (type === 'vlm') {
+                data = {
+                    vlm: {
+                        protocol: document.getElementById('vlm-protocol').value,
+                        url: document.getElementById('vlm-url').value,
+                        apikey: document.getElementById('vlm-apikey').value,
+                        model: document.getElementById('vlm-model').value,
+                    }
+                };
+            } else if (type === 'adb') {
+                data = {
+                    adb: {
+                        path: document.getElementById('adb-path').value,
+                        timeout: parseInt(document.getElementById('adb-timeout').value),
+                        port: parseInt(document.getElementById('adb-port').value)
+                    }
+                };
+            } else if (type === 'feishu') {
+                data = {
+                    feishu: {
+                        webhook: document.getElementById('feishu-webhook').value,
+                        enabled: document.getElementById('feishu-enabled').value === 'true',
+                        template: document.getElementById('feishu-template').value
+                    }
+                };
+            }
+            
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    UIUtils.success('保存成功', '配置已成功保存');
+                } else {
+                    UIUtils.error('保存失败', result.error || '未知错误');
+                }
+            } catch (error) {
+                console.error('Failed to save settings:', error);
+                UIUtils.error('保存失败', '网络错误，请稍后重试');
+            } finally {
+                // 恢复按钮状态
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+            }
+        }
+        
+        async function testLLMConnection() {
+            const btn = document.querySelector('button[onclick="testLLMConnection()"]');
+            const url = document.getElementById('llm-url').value;
+            const apikey = document.getElementById('llm-apikey').value;
+            
+            if (!url || !apikey) {
+                showTestResult('llm', { success: false, message: '请先填写API地址和API密钥' });
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>测试中...';
+            
+            try {
+                const response = await fetch('/api/settings/test/llm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        protocol: document.getElementById('llm-protocol').value,
+                        url: url,
+                        apikey: apikey,
+                        model: document.getElementById('llm-model').value
+                    })
+                });
+                const result = await response.json();
+                showTestResult('llm', result);
+            } catch (error) {
+                showTestResult('llm', { success: false, message: `测试失败: ${error.message}` });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-plug mr-2"></i>测试连接';
+            }
+        }
+        
+        async function testVLMConnection() {
+            const btn = document.querySelector('button[onclick="testVLMConnection()"]');
+            const url = document.getElementById('vlm-url').value;
+            const apikey = document.getElementById('vlm-apikey').value;
+            
+            if (!url || !apikey) {
+                showTestResult('vlm', { success: false, message: '请先填写API地址和API密钥' });
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>测试中...';
+            
+            try {
+                const response = await fetch('/api/settings/test/vlm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        protocol: document.getElementById('vlm-protocol').value,
+                        url: url,
+                        apikey: apikey,
+                        model: document.getElementById('vlm-model').value
+                    })
+                });
+                const result = await response.json();
+                showTestResult('vlm', result);
+            } catch (error) {
+                showTestResult('vlm', { success: false, message: `测试失败: ${error.message}` });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-plug mr-2"></i>测试连接';
+            }
+        }
+        
+        async function testADBConnection() {
+            const btn = document.querySelector('button[onclick="testADBConnection()"]');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>测试中...';
+            
+            try {
+                const response = await fetch('/api/settings/test/adb');
+                const result = await response.json();
+                showTestResult('adb', result);
+            } catch (error) {
+                showTestResult('adb', { success: false, message: `测试失败: ${error.message}` });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-plug mr-2"></i>测试连接';
+            }
+        }
+        
+        async function testNotificationChannel(channel) {
+            const btn = event.target.closest('button');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>测试中...';
+
+            try {
+                const response = await fetch('/api/settings/test/notification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channel: channel })
+                });
+                const result = await response.json();
+                showTestResult('feishu', result);
+            } catch (error) {
+                showTestResult('feishu', { success: false, message: `测试失败: ${error.message}` });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-plug mr-2"></i>测试通知';
+            }
+        }
+
+        function showTestResult(tabType, result) {
+            const container = document.getElementById(`test-result-${tabType}`);
+            if (!container) return;
+
+            container.classList.remove('hidden');
+
+            const message = result.message !== undefined && result.message !== null
+                ? result.message
+                : '测试完成，但未返回结果';
+
+            if (result.success) {
+                container.className = 'mt-6 p-4 rounded-xl test-success flex items-center';
+                container.innerHTML = `<i class="fa fa-check-circle mr-3 text-xl"></i><span>${message}</span>`;
+            } else {
+                container.className = 'mt-6 p-4 rounded-xl test-error flex items-center';
+                container.innerHTML = `<i class="fa fa-times-circle mr-3 text-xl"></i><span>${message}</span>`;
+            }
+        }
+
+        function togglePassword(inputId, buttonId) {
+            const input = document.getElementById(inputId);
+            const button = document.getElementById(buttonId);
+            const icon = button.querySelector('i');
+
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            }
+        }
+
+        // --- 通知规则管理 ---
+        async function loadNotificationRules() {
+            try {
+                const response = await fetch('/api/settings/notification/rules');
+                const data = await response.json();
+                const rules = data.rules || [];
+                const tbody = document.getElementById('rules-tbody');
+
+                if (rules.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">暂无通知规则</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = rules.map(rule => {
+                    const condKey = Object.keys(rule.conditions || {})[0] || '';
+                    const condVal = condKey ? rule.conditions[condKey] : '';
+                    const condDisplay = condKey ? `${condKey} = ${condVal}` : '无条件';
+                    const channelsDisplay = (rule.channels || []).join(', ');
+                    const enabledBadge = rule.enabled
+                        ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">启用</span>'
+                        : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">禁用</span>';
+
+                    return `<tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-3 text-sm text-gray-800 font-medium">${rule.name}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600">${EVENT_TYPE_LABELS[rule.event_type] || rule.event_type}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600">${condDisplay}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600">${channelsDisplay}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600">${rule.priority}</td>
+                        <td class="px-4 py-3">${enabledBadge}</td>
+                        <td class="px-4 py-3 text-sm">
+                            <button onclick="editRule(${rule.id})" class="text-blue-600 hover:text-blue-800 mr-3 transition-colors">
+                                <i class="fa fa-edit"></i> 编辑
+                            </button>
+                            <button onclick="deleteRule(${rule.id})" class="text-red-500 hover:text-red-700 transition-colors">
+                                <i class="fa fa-trash"></i> 删除
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load notification rules:', error);
+                document.getElementById('rules-tbody').innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-red-500">加载失败</td></tr>';
+            }
+        }
+
+        function showAddRuleModal() {
+            document.getElementById('rule-modal-title').textContent = '添加通知规则';
+            document.getElementById('rule-id').value = '';
+            document.getElementById('rule-name').value = '';
+            document.getElementById('rule-event-type').value = 'task_failed';
+            document.getElementById('rule-condition-key').value = '';
+            document.getElementById('rule-condition-value').value = '';
+            document.getElementById('rule-channel-feishu').checked = true;
+            document.getElementById('rule-priority').value = 10;
+            document.getElementById('rule-enabled').checked = true;
+            document.getElementById('rule-modal').classList.remove('hidden');
+        }
+
+        function closeRuleModal() {
+            document.getElementById('rule-modal').classList.add('hidden');
+        }
+
+        async function editRule(ruleId) {
+            try {
+                const response = await fetch('/api/settings/notification/rules');
+                const data = await response.json();
+                const rule = data.rules.find(r => r.id === ruleId);
+                if (!rule) return;
+
+                document.getElementById('rule-modal-title').textContent = '编辑通知规则';
+                document.getElementById('rule-id').value = rule.id;
+                document.getElementById('rule-name').value = rule.name;
+                document.getElementById('rule-event-type').value = rule.event_type;
+
+                const condKeys = Object.keys(rule.conditions || {});
+                if (condKeys.length > 0) {
+                    document.getElementById('rule-condition-key').value = condKeys[0];
+                    document.getElementById('rule-condition-value').value = rule.conditions[condKeys[0]];
+                } else {
+                    document.getElementById('rule-condition-key').value = '';
+                    document.getElementById('rule-condition-value').value = '';
+                }
+
+                document.getElementById('rule-channel-feishu').checked = (rule.channels || []).includes('feishu');
+                document.getElementById('rule-priority').value = rule.priority;
+                document.getElementById('rule-enabled').checked = rule.enabled;
+                document.getElementById('rule-modal').classList.remove('hidden');
+            } catch (error) {
+                UIUtils.error('加载失败', '无法获取规则详情');
+            }
+        }
+
+        async function saveRule(event) {
+            event.preventDefault();
+
+            const ruleId = document.getElementById('rule-id').value;
+            const conditionKey = document.getElementById('rule-condition-key').value;
+            const conditionValue = document.getElementById('rule-condition-value').value;
+
+            const conditions = {};
+            if (conditionKey && conditionValue) {
+                conditions[conditionKey] = conditionValue;
+            }
+
+            const channels = [];
+            if (document.getElementById('rule-channel-feishu').checked) channels.push('feishu');
+
+            const data = {
+                name: document.getElementById('rule-name').value,
+                event_type: document.getElementById('rule-event-type').value,
+                conditions: conditions,
+                channels: channels,
+                priority: parseInt(document.getElementById('rule-priority').value) || 10,
+                enabled: document.getElementById('rule-enabled').checked,
+            };
+
+            try {
+                let response;
+                if (ruleId) {
+                    response = await fetch(`/api/settings/notification/rules/${ruleId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    response = await fetch('/api/settings/notification/rules', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    closeRuleModal();
+                    loadNotificationRules();
+                    UIUtils.success('保存成功', '通知规则已保存');
+                } else {
+                    UIUtils.error('保存失败', result.error || '未知错误');
+                }
+            } catch (error) {
+                UIUtils.error('保存失败', '网络错误');
+            }
+        }
+
+        async function deleteRule(ruleId) {
+            if (!confirm('确定删除此通知规则？')) return;
+
+            try {
+                const response = await fetch(`/api/settings/notification/rules/${ruleId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    loadNotificationRules();
+                    UIUtils.success('删除成功', '通知规则已删除');
+                } else {
+                    UIUtils.error('删除失败', result.error || '未知错误');
+                }
+            } catch (error) {
+                UIUtils.error('删除失败', '网络错误');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadSettings();
+        });
+    </script>
+</body>
+</html>

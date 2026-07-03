@@ -1,0 +1,116 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Type checking
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.log
+/tmp/
+screenshots/
+
+# Keep old files during transition
+call_model.py
+app_package_name.py
+
+.claude/
+.venv
+
+# ==========================================
+# 新增：敏感文件和开发文件
+# ==========================================
+
+# API Keys and Secrets
+key
+*.key
+*.pem
+.env
+.env.*
+*.secret
+*_secret*
+*password*
+*token*
+*.crt
+
+# Installation and Build Logs
+Installation_Log.md
+
+# APK Files (可选，如果需要分发可以移除此行)
+*.apk
+
+# Docker local files (保留配置文件，忽略运行时文件)
+docker-compose.override.yml
+.docker/
+
+# Web UI logs
+web_ui/logs/
+logs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+backend/db/data/
+backend/db/*.db
+
+# Documentation and uploads (not to be pushed to GitHub)
+docs/
+uploads/
+
+# Browsers (Playwright)
+browsers/
+
+# Data directory (runtime artifacts, not tracked)
+data/
+
+# Test cases (not tracked)
+tests/
+backend/tests/
+web_ui/tests/
+_pytest_out.txt

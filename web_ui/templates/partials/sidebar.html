@@ -1,0 +1,152 @@
+<aside
+    id="sidebar"
+    data-active-nav="{{ active_nav }}"
+    class="sidebar-gradient text-white h-full fixed left-0 top-0 z-50 flex flex-col w-56 overflow-hidden"
+>
+    <div class="p-4 border-b border-white/10">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white border border-white/20 bg-white/5">
+                <i class="fa fa-mobile-phone text-2xl"></i>
+            </div>
+            <div class="sidebar-text">
+                <h1 class="text-base font-bold tracking-tight">Mobile Agent</h1>
+                <p class="text-xs text-blue-300">移动端测试智能体</p>
+            </div>
+        </div>
+    </div>
+
+    <nav class="p-3 space-y-0.5 flex-1">
+        <a
+            href="/"
+            data-nav-key="home"
+            data-nav-link
+            class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm {% if active_nav == 'home' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+        >
+            <i class="fa fa-home w-4 h-4 mr-2.5 {% if active_nav == 'home' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+            <span class="sidebar-text {% if active_nav == 'home' %}font-medium{% endif %}">首页</span>
+        </a>
+        <a
+            href="/dashboard"
+            data-nav-key="dashboard"
+            data-nav-link
+            class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm {% if active_nav == 'dashboard' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+        >
+            <i class="fa fa-tachometer w-4 h-4 mr-2.5 {% if active_nav == 'dashboard' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+            <span class="sidebar-text {% if active_nav == 'dashboard' %}font-medium{% endif %}">仪表盘</span>
+        </a>
+
+        <div data-group="resource" class="sidebar-group pt-3">
+            <button
+                type="button"
+                data-group="resource"
+                class="sidebar-group-toggle w-full flex items-center px-3 py-2 text-xs uppercase tracking-[0.2em] text-blue-200/80"
+            >
+                <i class="fa fa-chevron-down mr-2 sidebar-group-chevron"></i>
+                <span class="sidebar-text">资源中心</span>
+            </button>
+            <div class="sidebar-group-children">
+                <a
+                    href="/projects"
+                    data-nav-key="projects"
+                    data-nav-link
+                    class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm {% if active_nav == 'projects' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+                >
+                    <i class="fa fa-folder-open w-4 h-4 mr-2.5 {% if active_nav == 'projects' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+                    <span class="sidebar-text {% if active_nav == 'projects' %}font-medium{% endif %}">项目管理</span>
+                </a>
+                <a
+                    href="/apks"
+                    data-nav-key="apks"
+                    data-nav-link
+                    class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm {% if active_nav == 'apks' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+                >
+                    <i class="fa fa-android w-4 h-4 mr-2.5 {% if active_nav == 'apks' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+                    <span class="sidebar-text {% if active_nav == 'apks' %}font-medium{% endif %}">APK管理</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- AI Agent: 不加 data-nav-link，因为页面布局完全不同（无侧边栏），需全页面跳转 -->
+        <a
+            href="/agent"
+            data-nav-key="agent"
+            class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm {% if active_nav == 'agent' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+        >
+            <i class="fa fa-magic w-4 h-4 mr-2.5 {% if active_nav == 'agent' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+            <span class="sidebar-text {% if active_nav == 'agent' %}font-medium{% endif %}">AI Agent</span>
+        </a>
+        <a
+            href="/scripts"
+            data-nav-link
+            data-nav-key="scripts"
+            class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm {% if active_nav == 'scripts' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+        >
+            <i class="fa fa-file-code-o w-4 h-4 mr-2.5 {% if active_nav == 'scripts' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+            <span class="sidebar-text {% if active_nav == 'scripts' %}font-medium{% endif %}">脚本管理</span>
+        </a>
+
+        <div data-group="execution" class="sidebar-group pt-3">
+            <button
+                type="button"
+                data-group="execution"
+                class="sidebar-group-toggle w-full flex items-center px-3 py-2 text-xs uppercase tracking-[0.2em] text-blue-200/80"
+            >
+                <i class="fa fa-chevron-down mr-2 sidebar-group-chevron"></i>
+                <span class="sidebar-text">执行中心</span>
+            </button>
+            <div class="sidebar-group-children">
+                <a
+            href="/tasks"
+            data-nav-key="tasks"
+            data-nav-link
+            class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm {% if active_nav == 'tasks' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+        >
+                    <i class="fa fa-tasks w-4 h-4 mr-2.5 {% if active_nav == 'tasks' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+                    <span class="sidebar-text {% if active_nav == 'tasks' %}font-medium{% endif %}">任务管理</span>
+                </a>
+                <a
+                    href="/reports"
+                    data-nav-key="reports"
+                    data-nav-link
+                    class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm {% if active_nav == 'reports' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+                >
+                    <i class="fa fa-bar-chart w-4 h-4 mr-2.5 {% if active_nav == 'reports' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+                    <span class="sidebar-text {% if active_nav == 'reports' %}font-medium{% endif %}">报告管理</span>
+                </a>
+                <a
+                    href="/compat-analysis"
+                    data-nav-key="compat_analysis"
+                    data-nav-link
+                    class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm {% if active_nav == 'compat_analysis' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+                >
+                    <i class="fa fa-picture-o w-4 h-4 mr-2.5 {% if active_nav == 'compat_analysis' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+                    <span class="sidebar-text {% if active_nav == 'compat_analysis' %}font-medium{% endif %}">兼容分析</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- 配置管理: 不加 data-nav-link，不在 SPA 路由列表中 -->
+        <a
+            href="/settings"
+            data-nav-key="settings"
+            class="sidebar-item flex items-center px-3 py-2.5 rounded-lg transition-all duration-300 text-sm mt-3 {% if active_nav == 'settings' %}active text-white{% else %}text-gray-300 hover:text-white{% endif %}"
+        >
+            <i class="fa fa-cog w-4 h-4 mr-2.5 {% if active_nav == 'settings' %}text-blue-400{% else %}text-gray-400{% endif %}"></i>
+            <span class="sidebar-text {% if active_nav == 'settings' %}font-medium{% endif %}">配置管理</span>
+        </a>
+    </nav>
+
+    <div class="p-3 border-t border-white/10">
+        <div class="bg-white/5 rounded-xl p-3">
+            <div class="flex items-center">
+                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm mr-3">
+                    A
+                </div>
+                <div class="flex-1 min-w-0 sidebar-text">
+                    <div class="text-sm font-medium truncate">Admin</div>
+                    <div class="text-xs text-blue-200 truncate">系统管理员</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</aside>
