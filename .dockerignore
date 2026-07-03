@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.git/
+.gitignore
+*.md
+data/
+logs/
+tests/
+docs/
+uploads/
+*.db
+*.sqlite
+*.apk
+.hdc/

@@ -114,3 +114,7 @@ tests/
 backend/tests/
 web_ui/tests/
 _pytest_out.txt
+
+# HDC binary (user-provided, not distributed)
+hdc/
+!.gitkeep

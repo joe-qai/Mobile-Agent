@@ -210,9 +210,9 @@ Mobile Agent 的核心是一个 **ReAct（Reasoning + Acting）循环引擎**：
 
 ### 环境要求
 
-- **Python** 3.10+（推荐 3.13）
+- **Docker** (推荐) 或 **Python** 3.10+
 - **ADB** — [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)
-- **HDC** — HarmonyOS Device Connector（可选）
+- **HDC** — HarmonyOS Device Connector（可选，自备二进制放入 `hdc/` 目录）
 - **Xcode + WebDriverAgent** — iOS 设备（可选）
 
 ### 安装
@@ -220,25 +220,49 @@ Mobile Agent 的核心是一个 **ReAct（Reasoning + Acting）循环引擎**：
 ```bash
 git clone <repo-url>
 cd Mobile_Agent
+```
 
+### 启动
+
+#### Docker（推荐）
+
+```bash
+# 首次构建
+docker compose build
+
+# 启动（自动发现 USB / 局域网 ADB 设备）
+docker compose up -d
+
+# 查看日志
+docker compose logs -f
+```
+
+访问 `http://localhost:8001`
+
+容器通过 `docker_scan_devices.py` 自动发现设备：
+
+| 来源 | 方式 |
+|------|------|
+| **USB 连接** | 容器透传 `/dev/bus/usb`，`adb devices` 自动识别 |
+| **局域网 WiFi** | 自动推断容器所在网段，扫描 5555 端口并 `adb connect` |
+| **额外网段** | 通过 `ADB_SCAN_SUBNETS` 环境变量传入，逗号分隔 |
+
+```bash
+# 查看已连接的设备
+docker compose exec mobile-agent adb devices
+```
+
+#### 直接运行
+
+```bash
 python -m venv venv
 # Windows: venv\Scripts\activate
 # Linux/Mac: source venv/bin/activate
 
 pip install -r requirements.lock
-```
 
-### 启动
-
-```bash
-# Web UI（推荐）
 python web_ui/main.py
-
-# 自定义端口
-python web_ui/main.py --port 9000
 ```
-
-访问 `http://localhost:8001`
 
 ***
 

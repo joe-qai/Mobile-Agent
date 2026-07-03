@@ -1,0 +1,15 @@
+services:
+  mobile-agent:
+    build: .
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data:/app/data
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
+    environment:
+      - ADB_SCAN_SUBNETS=          # 可选: 额外网段, 逗号分隔
+      - VLM_BASE_URL=
+      - VLM_MODEL=
+      - VLM_API_KEY=
+    restart: unless-stopped
