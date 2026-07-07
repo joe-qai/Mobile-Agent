@@ -19,6 +19,27 @@ class PythonExecutor:
             or re.search(r"=+.*\b\d+\s+(failed|error|errors)\b", output, re.IGNORECASE)
         )
 
+    @staticmethod
+    def _extract_pytest_failures(output: str) -> str:
+        """Extract pytest failure/error details from stdout for display."""
+        lines = output.splitlines()
+        in_failure = False
+        failure_lines = []
+        for line in lines:
+            if re.search(r"^={2,}\s*(FAILURES|ERRORS)\s*={2,}", line):
+                in_failure = True
+            if in_failure:
+                failure_lines.append(line)
+                if re.search(r"^={2,}\s*\d+ passed", line):
+                    break
+                if re.search(r"^={2,}\s*short test summary", line):
+                    break
+                if re.search(r"^={2,}\s*.*seconds?\s*=+", line):
+                    break
+        if failure_lines:
+            return "\n".join(failure_lines)
+        return ""
+
     def execute(
         self, script_content: str, device_id: Optional[str] = None, timeout: int = 300
     ) -> Dict:
@@ -57,13 +78,17 @@ class PythonExecutor:
             )
 
             effective_returncode = result.returncode
+            error = result.stderr if result.stderr else None
             if result.returncode == 0 and self._pytest_output_failed(result.stdout):
                 effective_returncode = 1
+                if not error:
+                    pytest_failures = self._extract_pytest_failures(result.stdout)
+                    error = pytest_failures or "Test execution failed (see output for details)"
 
             return {
                 "success": effective_returncode == 0,
                 "output": result.stdout,
-                "error": result.stderr if result.stderr else None,
+                "error": error,
                 "returncode": effective_returncode,
             }
         except subprocess.TimeoutExpired:

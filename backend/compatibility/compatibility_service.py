@@ -1142,12 +1142,17 @@ class CompatibilityService:
             else "failed"
         )
 
+        task_error = p1_result.get("error") or ""
+        if not task_error and not p1_result["script_success"]:
+            task_error = "Script execution failed (see log for details)"
+
         update_task(
             child_task_id,
             status=status,
             result=json.dumps(
                 {
                     "success": p1_result["script_success"],
+                    "error": task_error,
                     "assertion_summary": assertion_summary,
                 }
             ),

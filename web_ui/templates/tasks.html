@@ -751,6 +751,11 @@
             // failed：优先展示错误信息
             if (task.status === 'failed') {
                 if (parsed && parsed.error) return String(parsed.error);
+                if (parsed && parsed.output) {
+                    const out = String(parsed.output).trim();
+                    if (out.length > 500) return out.substring(0, 500) + '\n...(截断)';
+                    if (out) return out;
+                }
                 if (parsed && typeof parsed.result === 'string' && parsed.result) return parsed.result;
                 return '执行失败';
             }
